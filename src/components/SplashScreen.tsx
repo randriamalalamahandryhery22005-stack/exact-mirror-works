@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import jhLogo from "@/assets/jh-logo.png";
+import splashTheme from "@/assets/splash-theme.mp3.asset.json";
 
 interface SplashScreenProps {
   onComplete: () => void;
@@ -8,12 +9,16 @@ interface SplashScreenProps {
 /**
  * Splash luxe "Jeux d'Hazard" — Émeraude Prestige
  * Anneau conique doré tournant, halo pulsé, monogramme JH, barre de progression fine.
+ * Synchronisé sur la bande sonore (13s).
  */
+const SPLASH_DURATION_MS = 13000;
+
 const SplashScreen = ({ onComplete }: SplashScreenProps) => {
   const [progress, setProgress] = useState(0);
   const [leaving, setLeaving] = useState(false);
   const [stepIdx, setStepIdx] = useState(0);
   const doneRef = useRef(false);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
 
   const steps = [
     "Initialisation du salon",
@@ -25,9 +30,18 @@ const SplashScreen = ({ onComplete }: SplashScreenProps) => {
   ];
 
   useEffect(() => {
-    const reduce = typeof window !== "undefined"
-      && window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
-    const totalMs = reduce ? 1200 : 5200;
+    const audio = new Audio(splashTheme.url);
+    audio.preload = "auto";
+    audio.volume = 1;
+    audioRef.current = audio;
+    const playPromise = audio.play();
+    if (playPromise && typeof playPromise.catch === "function") {
+      playPromise.catch(() => {
+        // Autoplay bloqué: on continue quand même l'animation
+      });
+    }
+
+    const totalMs = SPLASH_DURATION_MS;
     const startedAt = performance.now();
     let raf = 0;
 
@@ -41,11 +55,23 @@ const SplashScreen = ({ onComplete }: SplashScreenProps) => {
       } else if (!doneRef.current) {
         doneRef.current = true;
         setLeaving(true);
-        setTimeout(onComplete, 550);
+        setTimeout(() => {
+          try {
+            audio.pause();
+            audio.src = "";
+          } catch { /* noop */ }
+          onComplete();
+        }, 400);
       }
     };
     raf = requestAnimationFrame(tick);
-    return () => cancelAnimationFrame(raf);
+    return () => {
+      cancelAnimationFrame(raf);
+      try {
+        audio.pause();
+        audio.src = "";
+      } catch { /* noop */ }
+    };
   }, [onComplete]);
 
   return (
