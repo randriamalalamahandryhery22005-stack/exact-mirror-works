@@ -243,6 +243,15 @@ const SplashScreen = ({ onComplete }: SplashScreenProps) => {
       <div className="absolute bottom-6 left-0 right-0 text-center text-[10px] tracking-[0.4em] uppercase text-[hsl(45_30%_75%_/_0.4)]">
         Édition Or · 2026
       </div>
+
+      {/* Overlay iOS: autoplay bloqué — invite à toucher l'écran */}
+      {needsTap && (
+        <div className="absolute inset-0 z-20 flex items-end justify-center pb-24 pointer-events-none animate-blur-in">
+          <div className="pointer-events-auto px-5 py-3 rounded-full bg-black/40 backdrop-blur border border-[hsl(var(--gold)/0.4)] text-[11px] uppercase tracking-[0.35em] text-[hsl(45_60%_82%)] shadow-lg">
+            Touchez pour activer le son
+          </div>
+        </div>
+      )}
     </div>
   );
 };
