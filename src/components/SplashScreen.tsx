@@ -1,0 +1,159 @@
+import { useState, useEffect, useRef } from "react";
+import jhLogo from "@/assets/jh-logo.png";
+
+interface SplashScreenProps {
+  onComplete: () => void;
+}
+
+/**
+ * Splash luxe "Jeux d'Hazard" — Émeraude Prestige
+ * Anneau conique doré tournant, halo pulsé, monogramme JH, barre de progression fine.
+ */
+const SplashScreen = ({ onComplete }: SplashScreenProps) => {
+  const [progress, setProgress] = useState(0);
+  const [leaving, setLeaving] = useState(false);
+  const [stepIdx, setStepIdx] = useState(0);
+  const doneRef = useRef(false);
+
+  const steps = [
+    "Initialisation du salon",
+    "Authentification sécurisée",
+    "Synchronisation temps réel",
+    "Analyse des tendances",
+    "Préparation de l'interface",
+    "Prêt à jouer",
+  ];
+
+  useEffect(() => {
+    const reduce = typeof window !== "undefined"
+      && window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
+    const totalMs = reduce ? 1200 : 5200;
+    const startedAt = performance.now();
+    let raf = 0;
+
+    const tick = (t: number) => {
+      const elapsed = t - startedAt;
+      const p = Math.min(100, (elapsed / totalMs) * 100);
+      setProgress(p);
+      setStepIdx(Math.min(steps.length - 1, Math.floor((p / 100) * steps.length)));
+      if (p < 100) {
+        raf = requestAnimationFrame(tick);
+      } else if (!doneRef.current) {
+        doneRef.current = true;
+        setLeaving(true);
+        setTimeout(onComplete, 550);
+      }
+    };
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+  }, [onComplete]);
+
+  return (
+    <div
+      className={`fixed inset-0 z-[9999] flex flex-col items-center justify-center overflow-hidden transition-all duration-500 ${
+        leaving ? "opacity-0 scale-105" : "opacity-100 scale-100"
+      }`}
+      style={{
+        background:
+          "radial-gradient(1000px 700px at 20% 10%, hsl(152 72% 22% / 0.55), transparent 60%)," +
+          "radial-gradient(900px 700px at 100% 100%, hsl(42 82% 45% / 0.28), transparent 60%)," +
+          "radial-gradient(700px 500px at 50% 60%, hsl(158 65% 15% / 0.65), transparent 70%)," +
+          "linear-gradient(180deg, hsl(158 60% 4%) 0%, hsl(158 55% 6%) 100%)",
+      }}
+    >
+      {/* Grain overlay */}
+      <div
+        className="pointer-events-none absolute inset-0 opacity-[0.05] mix-blend-overlay"
+        style={{
+          backgroundImage:
+            "url(\"data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E\")",
+        }}
+      />
+
+      {/* Aurora blobs */}
+      <div className="absolute -top-32 -left-32 h-96 w-96 rounded-full bg-[hsl(152_72%_35%_/_0.35)] blur-3xl animate-aurora" />
+      <div className="absolute -bottom-24 -right-16 h-[28rem] w-[28rem] rounded-full bg-[hsl(42_82%_50%_/_0.22)] blur-3xl animate-aurora" style={{ animationDelay: "1.2s" }} />
+
+      {/* Logo cluster */}
+      <div className="relative z-10 flex flex-col items-center px-8">
+        <div className="relative flex items-center justify-center">
+          {/* Conic gold ring */}
+          <div
+            className="absolute h-56 w-56 rounded-full animate-orbit"
+            style={{
+              background:
+                "conic-gradient(from 0deg, hsl(42 82% 55% / 0), hsl(45 92% 70% / 0.9), hsl(42 82% 55% / 0), hsl(152 72% 45% / 0.55), hsl(42 82% 55% / 0))",
+              WebkitMask: "radial-gradient(closest-side, transparent 68%, black 70%)",
+              mask: "radial-gradient(closest-side, transparent 68%, black 70%)",
+            }}
+          />
+          {/* Pulse rings */}
+          <div className="absolute h-40 w-40 rounded-full border border-[hsl(42_82%_55%_/_0.4)] animate-pulse-ring" />
+          <div className="absolute h-40 w-40 rounded-full border border-[hsl(152_72%_45%_/_0.45)] animate-pulse-ring" style={{ animationDelay: "0.8s" }} />
+
+          {/* Logo card */}
+          <div
+            className="relative h-36 w-36 rounded-3xl overflow-hidden animate-blur-in"
+            style={{
+              boxShadow:
+                "0 30px 80px -20px hsl(42 82% 40% / 0.55), 0 0 0 1px hsl(42 82% 55% / 0.25) inset",
+            }}
+          >
+            <img
+              src={jhLogo}
+              alt="Jeux d'Hazard"
+              className="h-full w-full object-cover"
+              width={512}
+              height={512}
+            />
+            {/* Shimmer sheen */}
+            <div className="pointer-events-none absolute inset-0 animate-shimmer-sunset" />
+          </div>
+        </div>
+
+        {/* Wordmark */}
+        <div className="mt-10 text-center animate-blur-in" style={{ animationDelay: "0.15s" }}>
+          <div className="text-[10px] tracking-[0.55em] font-medium text-[hsl(45_60%_75%_/_0.75)] uppercase mb-2">
+            Premium · Casino Édition
+          </div>
+          <h1 className="font-display text-4xl sm:text-5xl font-bold gold-text leading-none">
+            Jeux d'Hazard
+          </h1>
+          <div className="mt-3 flex items-center justify-center gap-3 text-[10px] uppercase tracking-[0.4em] text-[hsl(45_50%_82%_/_0.55)]">
+            <span className="h-px w-8 bg-gradient-to-r from-transparent to-[hsl(42_82%_55%_/_0.6)]" />
+            Analyses & Prédictions
+            <span className="h-px w-8 bg-gradient-to-l from-transparent to-[hsl(42_82%_55%_/_0.6)]" />
+          </div>
+        </div>
+
+        {/* Progress */}
+        <div className="mt-12 w-72 max-w-[80vw] animate-blur-in" style={{ animationDelay: "0.3s" }}>
+          <div className="relative h-[3px] w-full overflow-hidden rounded-full bg-[hsl(158_45%_12%)]">
+            <div
+              className="absolute inset-y-0 left-0 rounded-full gold-gradient transition-[width] duration-150"
+              style={{ width: `${progress}%` }}
+            />
+            <div
+              className="absolute inset-y-0 left-0 rounded-full blur-md opacity-70"
+              style={{
+                width: `${progress}%`,
+                background: "linear-gradient(90deg, hsl(42 82% 55%), hsl(45 92% 70%))",
+              }}
+            />
+          </div>
+          <div className="mt-4 flex items-center justify-between text-[11px] font-mono tracking-widest text-[hsl(45_40%_82%_/_0.7)]">
+            <span className="truncate pr-3">{steps[stepIdx]}</span>
+            <span className="text-[hsl(42_82%_65%)]">{Math.floor(progress)}%</span>
+          </div>
+        </div>
+      </div>
+
+      {/* Bottom mark */}
+      <div className="absolute bottom-6 left-0 right-0 text-center text-[10px] tracking-[0.4em] uppercase text-[hsl(45_30%_75%_/_0.4)]">
+        Édition Or · 2026
+      </div>
+    </div>
+  );
+};
+
+export default SplashScreen;
