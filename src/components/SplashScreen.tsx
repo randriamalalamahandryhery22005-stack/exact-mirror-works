@@ -34,19 +34,27 @@ const SplashScreen = ({ onComplete }: SplashScreenProps) => {
   ];
 
   useEffect(() => {
-    // iOS/Safari-friendly audio element
+    // Élément audio compatible iOS Safari + Android Chrome
     const audio = new Audio();
     audio.src = splashTheme.url;
     audio.preload = "auto";
     audio.volume = 1;
-    audio.crossOrigin = "anonymous";
     // Attributs iOS: lecture inline, pas en plein écran
     (audio as HTMLAudioElement & { playsInline?: boolean }).playsInline = true;
     audio.setAttribute("playsinline", "");
     audio.setAttribute("webkit-playsinline", "");
+    audio.setAttribute("x-webkit-airplay", "deny");
     audioRef.current = audio;
 
     const totalMs = SPLASH_DURATION_MS;
+
+    const unmuteToFull = () => {
+      // Restaure le volume à 100% une fois la lecture réellement démarrée
+      try {
+        audio.muted = false;
+        audio.volume = 1;
+      } catch { /* noop */ }
+    };
 
     const startTimer = () => {
       if (startedRef.current) return;
@@ -81,19 +89,26 @@ const SplashScreen = ({ onComplete }: SplashScreenProps) => {
       window.removeEventListener("touchend", onGesture, true);
       window.removeEventListener("click", onGesture, true);
       window.removeEventListener("keydown", onGesture, true);
+      document.removeEventListener("visibilitychange", onVisibility);
     };
 
     function onGesture() {
-      // Tentative de lecture déclenchée par un geste utilisateur (iOS/Safari)
+      audio.muted = false;
+      audio.volume = 1;
       audio
         .play()
         .then(() => {
           cleanupGestureListeners();
+          unmuteToFull();
           startTimer();
         })
-        .catch(() => {
-          // On garde les listeners actifs; l'utilisateur peut réessayer
-        });
+        .catch(() => { /* l'utilisateur peut réessayer */ });
+    }
+
+    function onVisibility() {
+      if (document.visibilityState === "visible" && !startedRef.current) {
+        audio.play().then(() => { unmuteToFull(); startTimer(); }).catch(() => { /* noop */ });
+      }
     }
 
     const armGestureFallback = () => {
@@ -103,6 +118,7 @@ const SplashScreen = ({ onComplete }: SplashScreenProps) => {
       window.addEventListener("touchend", onGesture, { capture: true, passive: true });
       window.addEventListener("click", onGesture, true);
       window.addEventListener("keydown", onGesture, true);
+      document.addEventListener("visibilitychange", onVisibility);
       // Sécurité: si l'utilisateur n'interagit jamais, on démarre quand même
       // l'animation après 2s pour ne pas bloquer l'application.
       fallbackTimerRef.current = window.setTimeout(() => {
@@ -111,19 +127,37 @@ const SplashScreen = ({ onComplete }: SplashScreenProps) => {
     };
 
     // Démarre le timer dès que la lecture est effectivement en cours
-    const onPlaying = () => startTimer();
+    const onPlaying = () => { unmuteToFull(); startTimer(); };
     audio.addEventListener("playing", onPlaying);
 
-    // Tentative d'autoplay au montage
+    // Stratégie autoplay multi-plateforme:
+    // 1) Tentative en son plein (fonctionne si le site a déjà une interaction / PWA)
+    // 2) Si bloqué, on tente en muet (autorisé partout) puis on démonte le mute
+    //    après le premier événement "playing". Android Chrome autorise ce chemin.
+    // 3) Si même le muet est refusé, on arme le fallback geste utilisateur.
+    const tryMutedAutoplay = () => {
+      audio.muted = true;
+      const p = audio.play();
+      if (p && typeof p.then === "function") {
+        p.then(() => {
+          // Démonte le mute très vite pour retrouver le son à 100%
+          setTimeout(unmuteToFull, 0);
+        }).catch(() => {
+          armGestureFallback();
+        });
+      }
+    };
+
     const attempt = audio.play();
     if (attempt && typeof attempt.then === "function") {
-      attempt.catch(() => {
-        // Autoplay bloqué (typique iOS Safari / Chrome desktop sans interaction):
-        // on attend un geste utilisateur pour démarrer le son + l'animation.
-        armGestureFallback();
-      });
+      attempt
+        .then(() => {
+          unmuteToFull();
+        })
+        .catch(() => {
+          tryMutedAutoplay();
+        });
     } else {
-      // Navigateurs anciens: on suppose que ça joue
       startTimer();
     }
 
