@@ -17,8 +17,12 @@ const SplashScreen = ({ onComplete }: SplashScreenProps) => {
   const [progress, setProgress] = useState(0);
   const [leaving, setLeaving] = useState(false);
   const [stepIdx, setStepIdx] = useState(0);
+  const [needsTap, setNeedsTap] = useState(false);
   const doneRef = useRef(false);
   const audioRef = useRef<HTMLAudioElement | null>(null);
+  const startedRef = useRef(false);
+  const rafRef = useRef(0);
+  const fallbackTimerRef = useRef<number | null>(null);
 
   const steps = [
     "Initialisation du salon",
@@ -30,43 +34,104 @@ const SplashScreen = ({ onComplete }: SplashScreenProps) => {
   ];
 
   useEffect(() => {
-    const audio = new Audio(splashTheme.url);
+    // iOS/Safari-friendly audio element
+    const audio = new Audio();
+    audio.src = splashTheme.url;
     audio.preload = "auto";
     audio.volume = 1;
+    audio.crossOrigin = "anonymous";
+    // Attributs iOS: lecture inline, pas en plein écran
+    (audio as HTMLAudioElement & { playsInline?: boolean }).playsInline = true;
+    audio.setAttribute("playsinline", "");
+    audio.setAttribute("webkit-playsinline", "");
     audioRef.current = audio;
-    const playPromise = audio.play();
-    if (playPromise && typeof playPromise.catch === "function") {
-      playPromise.catch(() => {
-        // Autoplay bloqué: on continue quand même l'animation
-      });
-    }
 
     const totalMs = SPLASH_DURATION_MS;
-    const startedAt = performance.now();
-    let raf = 0;
 
-    const tick = (t: number) => {
-      const elapsed = t - startedAt;
-      const p = Math.min(100, (elapsed / totalMs) * 100);
-      setProgress(p);
-      setStepIdx(Math.min(steps.length - 1, Math.floor((p / 100) * steps.length)));
-      if (p < 100) {
-        raf = requestAnimationFrame(tick);
-      } else if (!doneRef.current) {
-        doneRef.current = true;
-        setLeaving(true);
-        setTimeout(() => {
-          try {
-            audio.pause();
-            audio.src = "";
-          } catch { /* noop */ }
-          onComplete();
-        }, 400);
-      }
+    const startTimer = () => {
+      if (startedRef.current) return;
+      startedRef.current = true;
+      setNeedsTap(false);
+      const startedAt = performance.now();
+      const tick = (t: number) => {
+        const elapsed = t - startedAt;
+        const p = Math.min(100, (elapsed / totalMs) * 100);
+        setProgress(p);
+        setStepIdx(Math.min(steps.length - 1, Math.floor((p / 100) * steps.length)));
+        if (p < 100) {
+          rafRef.current = requestAnimationFrame(tick);
+        } else if (!doneRef.current) {
+          doneRef.current = true;
+          setLeaving(true);
+          setTimeout(() => {
+            try {
+              audio.pause();
+              audio.src = "";
+            } catch { /* noop */ }
+            onComplete();
+          }, 400);
+        }
+      };
+      rafRef.current = requestAnimationFrame(tick);
     };
-    raf = requestAnimationFrame(tick);
+
+    const cleanupGestureListeners = () => {
+      window.removeEventListener("pointerdown", onGesture, true);
+      window.removeEventListener("touchstart", onGesture, true);
+      window.removeEventListener("touchend", onGesture, true);
+      window.removeEventListener("click", onGesture, true);
+      window.removeEventListener("keydown", onGesture, true);
+    };
+
+    function onGesture() {
+      // Tentative de lecture déclenchée par un geste utilisateur (iOS/Safari)
+      audio
+        .play()
+        .then(() => {
+          cleanupGestureListeners();
+          startTimer();
+        })
+        .catch(() => {
+          // On garde les listeners actifs; l'utilisateur peut réessayer
+        });
+    }
+
+    const armGestureFallback = () => {
+      setNeedsTap(true);
+      window.addEventListener("pointerdown", onGesture, true);
+      window.addEventListener("touchstart", onGesture, { capture: true, passive: true });
+      window.addEventListener("touchend", onGesture, { capture: true, passive: true });
+      window.addEventListener("click", onGesture, true);
+      window.addEventListener("keydown", onGesture, true);
+      // Sécurité: si l'utilisateur n'interagit jamais, on démarre quand même
+      // l'animation après 2s pour ne pas bloquer l'application.
+      fallbackTimerRef.current = window.setTimeout(() => {
+        if (!startedRef.current) startTimer();
+      }, 2000);
+    };
+
+    // Démarre le timer dès que la lecture est effectivement en cours
+    const onPlaying = () => startTimer();
+    audio.addEventListener("playing", onPlaying);
+
+    // Tentative d'autoplay au montage
+    const attempt = audio.play();
+    if (attempt && typeof attempt.then === "function") {
+      attempt.catch(() => {
+        // Autoplay bloqué (typique iOS Safari / Chrome desktop sans interaction):
+        // on attend un geste utilisateur pour démarrer le son + l'animation.
+        armGestureFallback();
+      });
+    } else {
+      // Navigateurs anciens: on suppose que ça joue
+      startTimer();
+    }
+
     return () => {
-      cancelAnimationFrame(raf);
+      cancelAnimationFrame(rafRef.current);
+      if (fallbackTimerRef.current) window.clearTimeout(fallbackTimerRef.current);
+      cleanupGestureListeners();
+      audio.removeEventListener("playing", onPlaying);
       try {
         audio.pause();
         audio.src = "";
