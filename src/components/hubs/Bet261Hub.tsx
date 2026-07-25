@@ -55,52 +55,20 @@ const Bet261Hub = ({ gameStats, mostPopular, onTrack }: Props) => {
 
   return (
     <section aria-label="Plateforme Bet261" className="space-y-4">
-      {/* Hero header — ornemental gold ring on emerald glass */}
-      <div className="relative overflow-hidden rounded-3xl border border-[hsl(var(--gold)/0.28)] glass-card p-4"
-           style={{ animation: "blur-in 0.7s cubic-bezier(0.16,1,0.3,1) both" }}>
-        <div className="absolute -top-16 -right-14 w-52 h-52 rounded-full pointer-events-none"
-             style={{ background: "radial-gradient(circle, hsl(var(--gold)/0.28), transparent 65%)" }} />
-        <div className="absolute -bottom-14 -left-10 w-48 h-48 rounded-full pointer-events-none"
-             style={{ background: "radial-gradient(circle, hsl(152 70% 40% / 0.28), transparent 65%)" }} />
-
-        <div className="relative flex items-center gap-3">
-          <div className="relative flex-shrink-0 animate-zoom-in-soft">
-            <div className="absolute inset-[-6px] rounded-2xl opacity-70 pointer-events-none animate-gold-conic"
-                 style={{ background: "conic-gradient(from 0deg, hsl(var(--gold)/0.7), transparent, hsl(var(--gold)/0.7))", filter: "blur(6px)" }} />
-            <div className="relative w-12 h-12 rounded-2xl overflow-hidden flex items-center justify-center bg-[hsl(var(--emerald-deep))] ring-1 ring-[hsl(var(--gold)/0.4)] shadow-lg animate-glow-gold-loop">
-              <img src={bet261Logo} alt="" className="w-full h-full object-contain p-0.5 animate-zoom-pulse" loading="lazy" decoding="async" />
-            </div>
-          </div>
-          <div className="min-w-0 flex-1 animate-slide-in-left">
-            <div className="flex items-center gap-1.5">
-              <span className="text-[9px] uppercase tracking-[0.22em] text-[hsl(var(--gold-soft))] font-bold">Plateforme Premium</span>
-              <ShieldCheck className="w-3 h-3 text-[hsl(var(--gold))]" />
-            </div>
-            <h2 className="text-lg font-black text-shine leading-tight">Bet261</h2>
-            <p className="text-[10px] text-muted-foreground truncate">{active} jeux actifs · moteur Émeraude v3.2</p>
-          </div>
-          <span className="text-[9px] px-2 py-1 rounded-full border border-[hsl(var(--gold)/0.35)] bg-[hsl(var(--gold)/0.08)] text-[hsl(var(--gold-soft))] font-bold flex items-center gap-1 animate-emerald-breathe animate-slide-in-right">
-            <TrendingUp className="w-3 h-3" /> Live
-          </span>
+      {/* Header épuré — logo + nom + tagline */}
+      <div className="flex items-center gap-3 px-1 py-2">
+        <div className="relative w-11 h-11 rounded-2xl overflow-hidden ring-1 ring-[hsl(var(--gold)/0.35)] bg-[hsl(var(--emerald-deep))] flex items-center justify-center shrink-0">
+          <img src={bet261Logo} alt="" className="w-full h-full object-contain p-0.5" loading="lazy" decoding="async" />
         </div>
-
-        {/* Live metrics strip */}
-        <div className="relative mt-4 grid grid-cols-3 gap-2">
-          {[
-            { label: "Jeux actifs", value: active, icon: <Sparkles className="w-3 h-3" /> },
-            { label: "En ligne",    value: totalOnline, icon: <Zap className="w-3 h-3" /> },
-            { label: "Niveau",      value: "Expert", icon: <Crown className="w-3 h-3" /> },
-          ].map((s) => (
-            <div key={s.label} className="p-2.5 rounded-xl border border-[hsl(var(--gold)/0.18)] bg-[hsl(var(--emerald-deep)/0.55)] backdrop-blur-sm">
-              <div className="flex items-center gap-1 mb-0.5 text-[hsl(var(--gold-soft))]">
-                {s.icon}
-                <span className="text-[8px] font-semibold uppercase tracking-wider truncate">{s.label}</span>
-              </div>
-              <p className="text-sm font-black leading-none tabular-nums gold-text">{s.value}</p>
-            </div>
-          ))}
+        <div className="min-w-0 flex-1">
+          <h2 className="text-base font-black text-shine leading-tight">Bet261</h2>
+          <p className="text-[11px] text-muted-foreground leading-snug truncate">Prédictions temps réel · sélection premium</p>
         </div>
+        <span className="text-[9px] px-2 py-1 rounded-full border border-[hsl(var(--gold)/0.35)] bg-[hsl(var(--gold)/0.08)] text-[hsl(var(--gold-soft))] font-bold flex items-center gap-1 shrink-0">
+          <span className="w-1.5 h-1.5 rounded-full bg-[hsl(152_70%_55%)] live-dot" /> Live
+        </span>
       </div>
+
 
       {/* Game grid — medal cards */}
       <div className="grid grid-cols-3 gap-2.5">
