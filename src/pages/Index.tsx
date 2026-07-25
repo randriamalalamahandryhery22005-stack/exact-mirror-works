@@ -74,26 +74,49 @@ const Index = () => {
 
         {!showSearch ? (
           <div className="space-y-3 stagger-up">
-            {/* Hero — search account */}
+            {/* Hero — search account (Premium-filled) */}
             <button
               onClick={() => setShowSearch(true)}
-              className="group relative w-full text-left p-[1.5px] rounded-3xl bg-gradient-to-br from-[hsl(var(--gold)/0.8)] via-[hsl(45_92%_70%_/_0.5)] to-[hsl(var(--gold)/0.8)] shadow-[0_15px_50px_-12px_hsl(42_82%_45%_/_0.55)] active:scale-[0.99] transition"
+              className="group relative w-full text-left rounded-3xl gold-gradient text-[hsl(158_60%_8%)] shadow-[0_25px_60px_-18px_hsl(42_82%_45%/0.65)] active:scale-[0.98] transition-transform overflow-hidden"
             >
-              <div className="relative rounded-[calc(1.5rem-1.5px)] bg-card/95 p-5 flex items-center gap-4 overflow-hidden">
-                <div className="absolute -right-10 -top-10 w-44 h-44 rounded-full bg-[hsl(var(--gold)/0.18)] blur-2xl group-hover:bg-[hsl(var(--gold)/0.28)] transition" />
-                <div className="relative w-12 h-12 rounded-2xl gold-gradient flex items-center justify-center shadow-lg shrink-0">
-                  <Search className="w-5 h-5 text-[hsl(158_60%_8%)]" />
-                </div>
-                <div className="relative flex-1 min-w-0">
-                  <div className="flex items-center gap-1.5">
-                    <p className="text-[10px] uppercase tracking-widest text-[hsl(var(--gold))] font-bold">Recommandé</p>
-                    <Sparkles className="w-3 h-3 text-[hsl(var(--gold))]" />
-                  </div>
-                  <p className="font-bold text-[15px] leading-tight mt-0.5">Rechercher mon compte</p>
-                  <p className="text-[11px] text-foreground/50 mt-0.5">Retrouvez instantanément votre profil</p>
-                </div>
-                <ArrowRight className="relative w-4 h-4 text-foreground/60 group-hover:translate-x-0.5 group-hover:text-[hsl(var(--gold))] transition" />
-              </div>
+              <span
+                aria-hidden
+                className="pointer-events-none absolute -inset-[2px] rounded-3xl opacity-70 blur-[10px] group-hover:opacity-95 transition-opacity"
+                style={{
+                  background:
+                    "conic-gradient(from 0deg, hsl(42 82% 55%), hsl(45 92% 78%), hsl(42 82% 55%))",
+                  animation: "orbit-ring 8s linear infinite",
+                }}
+              />
+              <span className="relative block rounded-3xl overflow-hidden">
+                <span
+                  aria-hidden
+                  className="pointer-events-none absolute inset-y-0 -left-1/2 w-1/3 rotate-12 bg-gradient-to-r from-transparent via-white/50 to-transparent"
+                  style={{ animation: "premium-sweep 3.2s ease-in-out infinite" }}
+                />
+                <span
+                  aria-hidden
+                  className="pointer-events-none absolute -right-16 -top-16 w-56 h-56 rounded-full bg-white/20 blur-3xl"
+                />
+                <span className="relative flex items-center gap-4 p-5">
+                  <span className="w-12 h-12 rounded-2xl bg-[hsl(158_60%_8%)]/90 flex items-center justify-center shadow-lg ring-1 ring-white/30 shrink-0">
+                    <Search className="w-5 h-5 text-[hsl(45_92%_65%)]" />
+                  </span>
+                  <span className="flex-1 min-w-0">
+                    <span className="flex items-center gap-1.5">
+                      <span className="text-[10px] uppercase tracking-widest font-black text-[hsl(158_60%_10%)]/80">Recommandé</span>
+                      <Sparkles className="w-3 h-3 text-[hsl(158_60%_10%)]/80" />
+                    </span>
+                    <span className="block font-display font-bold text-[15px] leading-tight mt-0.5 text-[hsl(158_60%_8%)]">
+                      Rechercher mon compte
+                    </span>
+                    <span className="block text-[11px] text-[hsl(158_60%_10%)]/70 mt-0.5">
+                      Retrouvez instantanément votre profil
+                    </span>
+                  </span>
+                  <ArrowRight className="w-4 h-4 text-[hsl(158_60%_8%)] group-hover:translate-x-1 transition-transform" />
+                </span>
+              </span>
             </button>
 
             {/* Sign in */}
@@ -111,19 +134,44 @@ const Index = () => {
               <ArrowRight className="w-4 h-4 text-foreground/40 group-hover:text-foreground/70 group-hover:translate-x-0.5 transition" />
             </button>
 
-            {/* Sign up */}
+            {/* Sign up — Premium outline (gold ring + dark inner) */}
             <button
               onClick={() => navigate("/signup")}
-              className="group w-full text-left p-4 rounded-2xl bg-foreground/[0.03] hover:bg-foreground/[0.06] border border-border hover:border-[hsl(var(--gold)/0.4)] backdrop-blur transition flex items-center gap-4 active:scale-[0.99]"
+              className="group relative w-full text-left p-[1.5px] rounded-3xl shadow-[0_18px_45px_-16px_hsl(42_82%_45%/0.55)] active:scale-[0.98] transition-transform overflow-hidden"
+              style={{
+                background:
+                  "linear-gradient(135deg, hsl(45 92% 68%), hsl(42 82% 50%), hsl(38 78% 44%))",
+              }}
             >
-              <div className="w-11 h-11 rounded-xl bg-[hsl(var(--gold)/0.15)] border border-[hsl(var(--gold)/0.3)] flex items-center justify-center shrink-0">
-                <UserPlus className="w-4 h-4 text-[hsl(var(--gold))]" />
-              </div>
-              <div className="flex-1 min-w-0">
-                <p className="font-semibold text-[14px]">Créer un nouveau compte</p>
-                <p className="text-[11px] text-foreground/50 mt-0.5">Rejoignez le salon en 30 s</p>
-              </div>
-              <ArrowRight className="w-4 h-4 text-foreground/40 group-hover:text-foreground/70 group-hover:translate-x-0.5 transition" />
+              <span className="relative block rounded-[calc(1.5rem-1.5px)] bg-[hsl(158_60%_8%)]/92 backdrop-blur overflow-hidden">
+                <span
+                  aria-hidden
+                  className="pointer-events-none absolute -left-16 -bottom-16 w-52 h-52 rounded-full bg-[hsl(var(--gold)/0.2)] blur-3xl group-hover:bg-[hsl(var(--gold)/0.35)] transition"
+                />
+                <span
+                  aria-hidden
+                  className="pointer-events-none absolute inset-y-0 -left-1/2 w-1/3 rotate-12 bg-gradient-to-r from-transparent via-[hsl(45_92%_70%_/_0.4)] to-transparent opacity-0 group-hover:opacity-100"
+                  style={{ animation: "premium-sweep 2.6s ease-in-out infinite" }}
+                />
+                <span className="relative flex items-center gap-4 p-4">
+                  <span className="w-11 h-11 rounded-2xl gold-gradient flex items-center justify-center shadow-lg shrink-0">
+                    <UserPlus className="w-5 h-5 text-[hsl(158_60%_8%)]" />
+                  </span>
+                  <span className="flex-1 min-w-0">
+                    <span className="flex items-center gap-1.5">
+                      <span className="text-[10px] uppercase tracking-widest font-black gold-text">Nouveau</span>
+                      <Sparkles className="w-3 h-3 text-[hsl(var(--gold))]" />
+                    </span>
+                    <span className="block font-display font-bold text-[15px] leading-tight mt-0.5 text-foreground">
+                      Créer un nouveau compte
+                    </span>
+                    <span className="block text-[11px] text-foreground/60 mt-0.5">
+                      Rejoignez le salon en 30 s
+                    </span>
+                  </span>
+                  <ArrowRight className="w-4 h-4 text-[hsl(var(--gold))] group-hover:translate-x-1 transition-transform" />
+                </span>
+              </span>
             </button>
 
             <div className="flex items-center justify-center gap-2 pt-6 text-[10px] text-foreground/40 uppercase tracking-[0.3em]">

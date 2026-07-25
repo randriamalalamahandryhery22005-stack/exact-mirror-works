@@ -13,6 +13,9 @@ import { RequireAuth, RequireAdmin, RedirectIfAuthed } from "@/components/RouteG
 import Index from "./pages/Index.tsx";
 import Login from "./pages/Login.tsx";
 import Signup from "./pages/Signup.tsx";
+import ForgotPassword from "./pages/ForgotPassword.tsx";
+import ResetPassword from "./pages/ResetPassword.tsx";
+
 
 import Games from "./pages/Games.tsx";
 import Admin from "./pages/Admin.tsx";
@@ -22,10 +25,9 @@ import AviatorPremium from "./pages/AviatorPremium.tsx";
 import AviatorStudio from "./pages/AviatorStudio.tsx";
 import AviatorSpribe from "./pages/AviatorSpribe.tsx";
 import CosmoX from "./pages/CosmoX.tsx";
-import Virtuel from "./pages/Virtuel.tsx";
 import JetX from "./pages/JetX.tsx";
-import PenaltyShootout from "./pages/PenaltyShootout.tsx";
 import NotFound from "./pages/NotFound.tsx";
+
 import CustomPrediction from "./pages/CustomPrediction.tsx";
 import Premium from "./pages/Premium.tsx";
 import PremiumSelect from "./pages/PremiumSelect.tsx";
@@ -56,6 +58,10 @@ const App = () => (
             <Route path="/index" element={<Index />} />
             <Route path="/login" element={<RedirectIfAuthed><Login /></RedirectIfAuthed>} />
             <Route path="/signup" element={<RedirectIfAuthed><Signup /></RedirectIfAuthed>} />
+            <Route path="/forgot-password" element={<ForgotPassword />} />
+            <Route path="/reset-password" element={<ResetPassword />} />
+
+
 
             <Route path="/games" element={<RequireAuth><Games /></RequireAuth>} />
             <Route path="/admin" element={<RequireAdmin><Admin /></RequireAdmin>} />
@@ -66,9 +72,8 @@ const App = () => (
             <Route path="/aviator-studio" element={<RequireAuth><AviatorStudio /></RequireAuth>} />
             <Route path="/aviator-spribe" element={<RequireAuth><AviatorSpribe /></RequireAuth>} />
             <Route path="/cosmox" element={<RequireAuth><CosmoX /></RequireAuth>} />
-            <Route path="/virtuel" element={<RequireAuth><Virtuel /></RequireAuth>} />
             <Route path="/jetx" element={<RequireAuth><JetX /></RequireAuth>} />
-            <Route path="/penalty-shootout" element={<RequireAuth><PenaltyShootout /></RequireAuth>} />
+
             <Route path="/custom/:slug" element={<RequireAuth><CustomPrediction /></RequireAuth>} />
             <Route path="/premium" element={<RequireAuth><Premium /></RequireAuth>} />
             <Route path="/premium-select" element={<RequireAuth><PremiumSelect /></RequireAuth>} />
