@@ -1,6 +1,7 @@
 import { useState, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import SplashScreen from "@/components/SplashScreen";
+import WelcomeIntro from "@/components/WelcomeIntro";
 import AccountSearch from "@/components/AccountSearch";
 import { useAuth } from "@/contexts/AuthContext";
 import { Search, UserPlus, LogIn, ArrowRight, ShieldCheck, Sparkles, ArrowLeft } from "lucide-react";
@@ -8,17 +9,25 @@ import jhLogo from "@/assets/jh-logo.png";
 
 const Index = () => {
   const [showSplash, setShowSplash] = useState(true);
+  const [showWelcome, setShowWelcome] = useState(false);
   const [showSearch, setShowSearch] = useState(false);
   const navigate = useNavigate();
   const { user, loading } = useAuth();
 
   const handleSplashComplete = useCallback(() => {
     setShowSplash(false);
+    setShowWelcome(true);
+  }, []);
+
+  const handleWelcomeComplete = useCallback(() => {
+    setShowWelcome(false);
     if (loading) return;
     if (user) navigate("/games");
   }, [navigate, user, loading]);
 
   if (showSplash) return <SplashScreen onComplete={handleSplashComplete} />;
+  if (showWelcome) return <WelcomeIntro onComplete={handleWelcomeComplete} />;
+
 
   return (
     <div className="relative min-h-[100dvh] overflow-hidden flex flex-col">
