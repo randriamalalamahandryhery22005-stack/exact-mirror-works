@@ -1,12 +1,33 @@
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { z } from "zod";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Eye, EyeOff, Mail, Phone, Shield, Loader2, Lock, LogIn, UserPlus, ArrowLeft } from "lucide-react";
+import {
+  Eye,
+  EyeOff,
+  Mail,
+  Phone,
+  Loader2,
+  Lock,
+  LogIn,
+  UserPlus,
+  ArrowLeft,
+  ShieldCheck,
+  X,
+  Plus,
+  ChevronRight,
+} from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import jhLogo from "@/assets/jh-logo.png";
+import {
+  getSavedAccounts,
+  removeSavedAccount,
+  rememberCurrentAccount,
+  maskIdentifier,
+  initialsFrom,
+  type SavedAccount,
+} from "@/lib/savedAccounts";
 
 const emailSchema = z.object({
   identifier: z.string().trim().toLowerCase().email("Adresse email invalide").max(255, "Email trop long"),
@@ -17,8 +38,15 @@ const phoneSchema = z.object({
   password: z.string().min(6, "Mot de passe : 6 caractères minimum").max(72, "Mot de passe trop long"),
 });
 
+type View = "accounts" | "quick" | "other";
+
 const Login = () => {
   const navigate = useNavigate();
+
+  const [saved, setSaved] = useState<SavedAccount[]>([]);
+  const [view, setView] = useState<View>("accounts");
+  const [selected, setSelected] = useState<SavedAccount | null>(null);
+
   const [loginMethod, setLoginMethod] = useState<"email" | "phone">("email");
   const [identifier, setIdentifier] = useState("");
   const [password, setPassword] = useState("");
@@ -26,10 +54,71 @@ const Login = () => {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
-  const handleLogin = async (e: React.FormEvent) => {
+  useEffect(() => {
+    const list = getSavedAccounts();
+    setSaved(list);
+    setView(list.length > 0 ? "accounts" : "other");
+  }, []);
+
+  const heroTitle = useMemo(() => {
+    if (view === "quick" && selected) return `Bonjour, ${selected.displayName.split(" ")[0]}`;
+    if (view === "other") return saved.length ? "Nouveau compte" : "Se connecter";
+    return "Vos comptes";
+  }, [view, selected, saved.length]);
+
+  const heroSub = useMemo(() => {
+    if (view === "quick" && selected)
+      return "Confirmez votre mot de passe pour continuer";
+    if (view === "other") return "Entrez vos identifiants pour accéder à Jeux d'Hazard";
+    return "Choisissez un compte pour vous reconnecter";
+  }, [view, selected]);
+
+  const doLogin = async (
+    payload: { email?: string; phone?: string; password: string },
+    fallback: { identifier: string; method: "email" | "phone"; displayName?: string }
+  ) => {
+    setLoading(true);
+    setError("");
+    try {
+      const { data, error } = await supabase.auth.signInWithPassword(payload as any);
+      if (error) throw error;
+      if (data.user) {
+        await rememberCurrentAccount(data.user.id, fallback);
+      }
+      toast.success("Connexion réussie !");
+      navigate("/games");
+    } catch (err: any) {
+      setError(
+        err.message === "Invalid login credentials"
+          ? "Mot de passe incorrect"
+          : err.message || "Connexion impossible"
+      );
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleQuickLogin = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selected) return;
+    if (password.length < 6) {
+      setError("Mot de passe : 6 caractères minimum");
+      return;
+    }
+    const payload =
+      selected.method === "email"
+        ? { email: selected.identifier, password }
+        : { phone: selected.identifier.replace(/[\s().-]/g, ""), password };
+    await doLogin(payload, {
+      identifier: selected.identifier,
+      method: selected.method,
+      displayName: selected.displayName,
+    });
+  };
+
+  const handleOtherLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
-
     const schema = loginMethod === "email" ? emailSchema : phoneSchema;
     const parsed = schema.safeParse({ identifier, password });
     if (!parsed.success) {
@@ -37,212 +126,361 @@ const Login = () => {
       return;
     }
     const creds = parsed.data;
-
-    setLoading(true);
-    try {
-      const payload = loginMethod === "email"
+    const payload =
+      loginMethod === "email"
         ? { email: creds.identifier, password: creds.password }
         : { phone: creds.identifier.replace(/[\s().-]/g, ""), password: creds.password };
-      const { error } = await supabase.auth.signInWithPassword(payload as any);
-      if (error) throw error;
-      toast.success("Connexion réussie !");
-      navigate("/games");
-    } catch (err: any) {
-      setError(err.message === "Invalid login credentials" ? "Email ou mot de passe incorrect" : err.message);
-    } finally {
-      setLoading(false);
-    }
+    await doLogin(payload, { identifier: creds.identifier, method: loginMethod });
+  };
+
+  const handleRemove = (userId: string) => {
+    removeSavedAccount(userId);
+    const list = getSavedAccounts();
+    setSaved(list);
+    if (list.length === 0) setView("other");
+    toast.success("Compte retiré de cet appareil");
+  };
+
+  const pickAccount = (acc: SavedAccount) => {
+    setSelected(acc);
+    setPassword("");
+    setError("");
+    setView("quick");
+  };
+
+  const goBackToAccounts = () => {
+    setSelected(null);
+    setPassword("");
+    setError("");
+    setIdentifier("");
+    setView(saved.length > 0 ? "accounts" : "other");
   };
 
   return (
-    <div className="min-h-[100dvh] flex flex-col items-center justify-center px-5 py-10 relative overflow-hidden">
-      {/* Luxe aurora backdrop */}
-      <div className="absolute -top-32 -left-24 w-[480px] h-[480px] rounded-full bg-[hsl(152_72%_35%_/_0.30)] blur-[110px] animate-aurora" />
-      <div className="absolute -bottom-24 -right-24 w-[440px] h-[440px] rounded-full bg-[hsl(42_82%_50%_/_0.25)] blur-[110px] animate-aurora" style={{ animationDelay: "1.5s" }} />
-      <div className="absolute top-1/3 -right-16 w-[280px] h-[280px] rounded-full bg-[hsl(45_92%_60%_/_0.10)] blur-[90px]" />
+    <div className="min-h-[100dvh] flex flex-col relative overflow-hidden bg-[hsl(158_60%_3%)]">
+      {/* Ambient — soft, less ornamental */}
+      <div className="absolute inset-0 -z-10 pointer-events-none">
+        <div className="absolute -top-32 -right-20 w-[28rem] h-[28rem] rounded-full bg-[hsl(152_72%_28%_/_0.35)] blur-[110px] animate-aurora" />
+        <div
+          className="absolute -bottom-40 -left-24 w-[26rem] h-[26rem] rounded-full bg-[hsl(42_82%_45%_/_0.18)] blur-[120px] animate-aurora"
+          style={{ animationDelay: "1.6s" }}
+        />
+      </div>
 
-      {/* Fine grid */}
-      <div
-        className="absolute inset-0 pointer-events-none opacity-[0.05]"
-        style={{
-          backgroundImage:
-            "linear-gradient(hsl(var(--gold)/0.5) 1px, transparent 1px), linear-gradient(90deg, hsl(var(--gold)/0.5) 1px, transparent 1px)",
-          backgroundSize: "48px 48px",
-          maskImage: "radial-gradient(ellipse at center, black 40%, transparent 80%)",
-        }}
-      />
-
-      {/* Back */}
-      <button
-        onClick={() => navigate("/")}
-        className="absolute top-6 left-5 z-20 inline-flex items-center gap-1.5 text-xs text-foreground/60 hover:text-foreground transition"
-      >
-        <ArrowLeft className="w-4 h-4" /> Accueil
-      </button>
-
-      <div className="w-full max-w-sm relative z-10 stagger-up">
-        {/* Header */}
-        <div className="flex flex-col items-center gap-5 mb-7">
-          <div className="relative animate-blur-in">
-            <div
-              className="absolute inset-[-14px] rounded-[36px] opacity-70 pointer-events-none"
-              style={{
-                background:
-                  "conic-gradient(from 0deg, hsl(42 82% 55%), hsl(45 92% 70%), hsl(152 72% 45%), hsl(42 82% 55%))",
-                filter: "blur(14px)",
-                animation: "orbit-ring 6s linear infinite",
-              }}
-            />
-            <div
-              className="relative w-24 h-24 rounded-[24px] overflow-hidden"
-              style={{
-                boxShadow: "0 20px 50px -10px hsl(42 82% 45% / 0.55), inset 0 0 0 1px hsl(42 82% 55% / 0.3)",
-              }}
-            >
-              <img src={jhLogo} alt="Jeux d'Hazard" className="w-full h-full object-cover" />
-            </div>
+      {/* Top bar */}
+      <header className="relative z-10 flex items-center justify-between px-5 pt-5">
+        <button
+          onClick={view === "quick" || (view === "other" && saved.length > 0) ? goBackToAccounts : () => navigate("/")}
+          className="inline-flex items-center gap-1.5 text-[12px] font-semibold text-foreground/60 hover:text-[hsl(var(--gold))] transition p-2 -m-2"
+          aria-label="Retour"
+        >
+          <ArrowLeft className="w-4 h-4" />
+          <span className="hidden sm:inline">
+            {view === "quick" || (view === "other" && saved.length > 0) ? "Comptes" : "Accueil"}
+          </span>
+        </button>
+        <div className="flex items-center gap-2">
+          <div className="w-8 h-8 rounded-xl overflow-hidden ring-1 ring-[hsl(var(--gold)/0.4)] shadow-lg">
+            <img src={jhLogo} alt="" className="w-full h-full object-cover" />
           </div>
-
-          <div className="text-center space-y-2.5">
-            <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-foreground/5 border border-[hsl(var(--gold)/0.25)] backdrop-blur-md">
-              <span className="w-1.5 h-1.5 rounded-full bg-[hsl(var(--gold))] animate-pulse" />
-              <span className="text-[10px] font-bold tracking-[0.35em] uppercase text-foreground/70">
-                Salon Privé
-              </span>
-            </div>
-            <h1 className="font-display text-3xl font-bold tracking-tight leading-tight">
-              <span className="text-foreground">Bon </span>
-              <span className="gold-text">retour</span>
-            </h1>
-            <p className="text-foreground/50 text-xs flex items-center justify-center gap-1.5 font-medium">
-              <Shield className="w-3.5 h-3.5 text-[hsl(var(--gold))]" />
-              Connexion sécurisée · Jeux d'Hazard
-            </p>
-          </div>
+          <span className="font-display text-[13px] font-bold gold-text">Jeux d'Hazard</span>
         </div>
+        <span className="w-6" />
+      </header>
 
-        {/* Glass card */}
-        <div className="relative rounded-[28px] p-[1px] bg-gradient-to-br from-[hsl(var(--gold)/0.5)] via-[hsl(var(--accent)/0.3)] to-[hsl(var(--gold)/0.5)] shadow-[0_30px_80px_-20px_hsl(158_60%_3%/0.7)]">
-          <div className="rounded-[27px] bg-card/70 backdrop-blur-2xl border border-border/50 p-5 sm:p-6 space-y-5">
-            {/* Method toggle */}
-            <div className="relative flex gap-1 p-1 rounded-2xl bg-background/60 border border-border/40">
-              {(["email", "phone"] as const).map((m) => (
-                <button
-                  key={m}
-                  onClick={() => setLoginMethod(m)}
-                  className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm font-bold transition-all duration-300 ${
-                    loginMethod === m
-                      ? "gold-gradient text-[hsl(158_60%_8%)] shadow-[0_8px_20px_-6px_hsl(42_82%_45%_/_0.55)]"
-                      : "text-foreground/50 hover:text-foreground/80"
-                  }`}
-                >
-                  {m === "email" ? <Mail className="w-4 h-4" /> : <Phone className="w-4 h-4" />}
-                  {m === "email" ? "Email" : "Téléphone"}
-                </button>
-              ))}
+      {/* Main */}
+      <main className="relative z-10 flex-1 flex flex-col items-center justify-start px-5 pt-8 pb-10">
+        <div className="w-full max-w-[400px]">
+          {/* Hero */}
+          <div className="text-center mb-6 animate-blur-in">
+            <h1 className="font-display text-[28px] font-bold tracking-tight leading-tight">
+              <span className="gold-text">{heroTitle}</span>
+            </h1>
+            <p className="text-foreground/55 text-[13px] mt-1.5">{heroSub}</p>
+          </div>
+
+          {/* ============ VIEW: accounts list ============ */}
+          {view === "accounts" && (
+            <div className="space-y-3 stagger-up">
+              <ul className="grid grid-cols-2 gap-3">
+                {saved.map((acc) => (
+                  <li key={acc.userId} className="relative group">
+                    <button
+                      onClick={() => pickAccount(acc)}
+                      className="w-full flex flex-col items-center gap-3 p-4 rounded-3xl bg-[hsl(158_60%_6%_/_0.7)] backdrop-blur-xl border border-[hsl(var(--gold)/0.15)] hover:border-[hsl(var(--gold)/0.5)] hover:bg-[hsl(158_60%_8%_/_0.85)] transition-all active:scale-[0.97] shadow-lg"
+                    >
+                      <Avatar name={acc.displayName} url={acc.avatarUrl} />
+                      <div className="min-w-0 w-full text-center">
+                        <p className="text-[13px] font-bold truncate text-foreground">
+                          {acc.displayName}
+                        </p>
+                        <p className="text-[10px] text-foreground/45 truncate mt-0.5">
+                          {maskIdentifier(acc.identifier, acc.method)}
+                        </p>
+                      </div>
+                    </button>
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleRemove(acc.userId);
+                      }}
+                      className="absolute top-2 right-2 w-6 h-6 rounded-full bg-black/50 border border-[hsl(var(--gold)/0.2)] flex items-center justify-center text-foreground/60 hover:text-destructive hover:border-destructive/50 opacity-0 group-hover:opacity-100 focus:opacity-100 transition"
+                      aria-label={`Retirer ${acc.displayName}`}
+                    >
+                      <X className="w-3 h-3" />
+                    </button>
+                  </li>
+                ))}
+                {/* Add-account tile */}
+                <li>
+                  <button
+                    onClick={() => {
+                      setView("other");
+                      setIdentifier("");
+                      setPassword("");
+                      setError("");
+                    }}
+                    className="w-full h-full min-h-[136px] flex flex-col items-center justify-center gap-2.5 p-4 rounded-3xl border border-dashed border-[hsl(var(--gold)/0.35)] hover:border-[hsl(var(--gold)/0.7)] bg-[hsl(158_60%_6%_/_0.35)] hover:bg-[hsl(158_60%_8%_/_0.6)] transition active:scale-[0.97]"
+                  >
+                    <div className="w-12 h-12 rounded-2xl gold-gradient flex items-center justify-center shadow-[0_10px_25px_-8px_hsl(42_82%_45%/0.55)]">
+                      <Plus className="w-5 h-5 text-[hsl(158_60%_8%)]" strokeWidth={2.6} />
+                    </div>
+                    <span className="text-[12px] font-bold text-foreground/80 text-center leading-tight">
+                      Se connecter avec<br />un autre compte
+                    </span>
+                  </button>
+                </li>
+              </ul>
+
+              <button
+                onClick={() => navigate("/signup")}
+                className="w-full h-12 mt-4 rounded-2xl border border-[hsl(var(--gold)/0.4)] bg-[hsl(var(--gold)/0.06)] hover:bg-[hsl(var(--gold)/0.12)] text-[hsl(var(--gold-soft))] font-bold text-[14px] flex items-center justify-center gap-2 transition active:scale-[0.98]"
+              >
+                <UserPlus className="w-4 h-4" />
+                Créer un nouveau compte
+              </button>
             </div>
+          )}
 
-            <form onSubmit={handleLogin} className="space-y-4">
-              <div className="space-y-1.5">
-                <Label htmlFor="identifier" className="text-[11px] uppercase tracking-[0.25em] text-foreground/50 font-bold flex items-center gap-1.5 ml-1">
-                  {loginMethod === "email" ? <Mail className="w-3 h-3" /> : <Phone className="w-3 h-3" />}
-                  {loginMethod === "email" ? "Adresse email" : "Numéro de téléphone"}
-                </Label>
-                <div className="relative">
-                  <div className="absolute left-4 top-1/2 -translate-y-1/2 text-foreground/40 pointer-events-none">
-                    {loginMethod === "email" ? <Mail className="w-4 h-4" /> : <Phone className="w-4 h-4" />}
-                  </div>
-                  <Input
-                    id="identifier"
-                    type={loginMethod === "email" ? "email" : "tel"}
-                    placeholder={loginMethod === "email" ? "vous@exemple.com" : "+261 34 00 000 00"}
-                    value={identifier}
-                    onChange={(e) => setIdentifier(e.target.value)}
-                    className="h-12 bg-background/60 border-border/60 pl-11 rounded-2xl text-sm focus:border-[hsl(var(--gold)/0.6)] focus:ring-2 focus:ring-[hsl(var(--gold)/0.2)]"
-                  />
+          {/* ============ VIEW: quick login (known account) ============ */}
+          {view === "quick" && selected && (
+            <div className="space-y-4 animate-blur-in">
+              <div className="flex items-center gap-4 p-4 rounded-3xl bg-[hsl(158_60%_6%_/_0.7)] backdrop-blur-xl border border-[hsl(var(--gold)/0.25)] shadow-xl">
+                <Avatar name={selected.displayName} url={selected.avatarUrl} size="lg" />
+                <div className="min-w-0 flex-1">
+                  <p className="text-[15px] font-bold truncate">{selected.displayName}</p>
+                  <p className="text-[11px] text-foreground/55 truncate">
+                    {maskIdentifier(selected.identifier, selected.method)}
+                  </p>
                 </div>
+                <button
+                  onClick={goBackToAccounts}
+                  className="text-[11px] font-bold text-[hsl(var(--gold-soft))] hover:text-[hsl(var(--gold))] px-2 py-1"
+                >
+                  Changer
+                </button>
               </div>
 
-              <div className="space-y-1.5">
-                <div className="flex items-center justify-between ml-1">
-                  <Label htmlFor="password" className="text-[11px] uppercase tracking-[0.25em] text-foreground/50 font-bold flex items-center gap-1.5">
-                    <Lock className="w-3 h-3" /> Mot de passe
-                  </Label>
-                  <button
-                    type="button"
-                    onClick={() => navigate("/forgot-password")}
-                    className="text-[11px] text-[hsl(var(--gold))] hover:underline"
-                  >
-                    Oublié ?
-                  </button>
-                </div>
-                <div className="relative">
-                  <div className="absolute left-4 top-1/2 -translate-y-1/2 text-foreground/40 pointer-events-none">
-                    <Lock className="w-4 h-4" />
-                  </div>
+              <form onSubmit={handleQuickLogin} className="space-y-3">
+                <div className="relative group">
+                  <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-foreground/40 pointer-events-none group-focus-within:text-[hsl(var(--gold))] transition" />
                   <Input
-                    id="password"
+                    autoFocus
                     type={showPassword ? "text" : "password"}
-                    placeholder="••••••••"
+                    placeholder="Mot de passe"
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
-                    className="h-12 bg-background/60 border-border/60 pl-11 pr-12 rounded-2xl text-sm focus:border-[hsl(var(--accent)/0.7)] focus:ring-2 focus:ring-[hsl(var(--accent)/0.2)]"
+                    className="h-13 bg-white/[0.04] border-[hsl(var(--gold)/0.15)] pl-11 pr-12 rounded-2xl text-[15px] placeholder:text-foreground/30 focus:border-[hsl(var(--gold)/0.6)] focus:ring-2 focus:ring-[hsl(var(--gold)/0.15)] py-3.5"
                   />
                   <button
                     type="button"
                     onClick={() => setShowPassword(!showPassword)}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-foreground/40 hover:text-foreground transition-colors p-1"
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-foreground/40 hover:text-[hsl(var(--gold))] transition p-1"
+                    aria-label={showPassword ? "Cacher" : "Afficher"}
                   >
                     {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                   </button>
                 </div>
-              </div>
 
-              {error && (
-                <div className="p-3 rounded-xl bg-destructive/10 border border-destructive/30">
-                  <p className="text-destructive text-xs text-center font-medium">{error}</p>
-                </div>
-              )}
+                {error && (
+                  <div className="p-3 rounded-xl bg-destructive/10 border border-destructive/30 animate-blur-in">
+                    <p className="text-destructive text-[12px] text-center font-medium">{error}</p>
+                  </div>
+                )}
+
+                <PrimaryButton loading={loading}>
+                  <LogIn className="w-4 h-4" /> Continuer
+                </PrimaryButton>
+
+                <button
+                  type="button"
+                  onClick={() => navigate("/forgot-password")}
+                  className="w-full text-center text-[12px] font-semibold text-foreground/55 hover:text-[hsl(var(--gold))] transition py-2"
+                >
+                  Mot de passe oublié ?
+                </button>
+              </form>
 
               <button
-                type="submit"
-                disabled={loading}
-                className="group relative w-full h-13 py-4 rounded-2xl gold-gradient text-[hsl(158_60%_8%)] font-bold shadow-[0_20px_40px_-12px_hsl(42_82%_45%_/_0.5)] transition-all active:scale-[0.98] disabled:opacity-70 disabled:cursor-not-allowed overflow-hidden font-display"
+                onClick={() => navigate("/signup")}
+                className="w-full h-12 rounded-2xl border border-[hsl(var(--gold)/0.4)] bg-[hsl(var(--gold)/0.06)] hover:bg-[hsl(var(--gold)/0.12)] text-[hsl(var(--gold-soft))] font-bold text-[13px] flex items-center justify-center gap-2 transition active:scale-[0.98]"
               >
-                <span className="absolute inset-0 bg-gradient-to-r from-transparent via-white/40 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-1000" />
-                {loading ? (
-                  <Loader2 className="w-5 h-5 animate-spin mx-auto" />
-                ) : (
-                  <span className="relative inline-flex items-center justify-center gap-2 text-[15px]">
-                    <LogIn className="w-4 h-4" />
-                    Se connecter
-                  </span>
-                )}
+                <UserPlus className="w-4 h-4" />
+                Créer un nouveau compte
               </button>
-            </form>
-
-            <div className="relative flex items-center gap-3">
-              <div className="flex-1 h-px bg-gradient-to-r from-transparent via-border to-transparent" />
-              <span className="text-[10px] uppercase tracking-[0.35em] text-foreground/40 font-bold">ou</span>
-              <div className="flex-1 h-px bg-gradient-to-r from-transparent via-border to-transparent" />
             </div>
+          )}
 
-            <button
-              onClick={() => navigate("/signup")}
-              className="w-full h-12 rounded-2xl border border-[hsl(var(--accent)/0.4)] bg-[hsl(var(--accent)/0.08)] hover:bg-[hsl(var(--accent)/0.16)] hover:border-[hsl(var(--accent)/0.6)] transition-all duration-300 inline-flex items-center justify-center gap-2 text-sm font-bold text-foreground"
-            >
-              <UserPlus className="w-4 h-4 text-[hsl(var(--accent))]" />
-              Créer un nouveau compte
-            </button>
-          </div>
+          {/* ============ VIEW: other / manual login ============ */}
+          {view === "other" && (
+            <div className="space-y-4 animate-blur-in">
+              <div className="p-1 rounded-2xl bg-black/40 border border-[hsl(var(--gold)/0.15)] flex gap-1">
+                {(["email", "phone"] as const).map((m) => (
+                  <button
+                    key={m}
+                    type="button"
+                    onClick={() => setLoginMethod(m)}
+                    className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl text-[13px] font-bold transition-all ${
+                      loginMethod === m
+                        ? "gold-gradient text-[hsl(158_60%_8%)] shadow-[0_6px_18px_-4px_hsl(42_82%_45%/0.55)]"
+                        : "text-foreground/50 hover:text-foreground/80"
+                    }`}
+                  >
+                    {m === "email" ? <Mail className="w-4 h-4" /> : <Phone className="w-4 h-4" />}
+                    {m === "email" ? "Email" : "Téléphone"}
+                  </button>
+                ))}
+              </div>
+
+              <form onSubmit={handleOtherLogin} className="space-y-3">
+                <div className="relative group">
+                  <div className="absolute left-4 top-1/2 -translate-y-1/2 text-foreground/40 pointer-events-none group-focus-within:text-[hsl(var(--gold))] transition">
+                    {loginMethod === "email" ? <Mail className="w-4 h-4" /> : <Phone className="w-4 h-4" />}
+                  </div>
+                  <Input
+                    type={loginMethod === "email" ? "email" : "tel"}
+                    autoComplete={loginMethod === "email" ? "email" : "tel"}
+                    placeholder={loginMethod === "email" ? "Adresse email" : "Numéro de téléphone"}
+                    value={identifier}
+                    onChange={(e) => setIdentifier(e.target.value)}
+                    className="h-13 bg-white/[0.04] border-[hsl(var(--gold)/0.15)] pl-11 rounded-2xl text-[15px] placeholder:text-foreground/30 focus:border-[hsl(var(--gold)/0.6)] focus:ring-2 focus:ring-[hsl(var(--gold)/0.15)] py-3.5"
+                  />
+                </div>
+
+                <div className="relative group">
+                  <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-foreground/40 pointer-events-none group-focus-within:text-[hsl(var(--gold))] transition" />
+                  <Input
+                    type={showPassword ? "text" : "password"}
+                    autoComplete="current-password"
+                    placeholder="Mot de passe"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    className="h-13 bg-white/[0.04] border-[hsl(var(--gold)/0.15)] pl-11 pr-12 rounded-2xl text-[15px] placeholder:text-foreground/30 focus:border-[hsl(var(--gold)/0.6)] focus:ring-2 focus:ring-[hsl(var(--gold)/0.15)] py-3.5"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-foreground/40 hover:text-[hsl(var(--gold))] transition p-1"
+                    aria-label={showPassword ? "Cacher" : "Afficher"}
+                  >
+                    {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  </button>
+                </div>
+
+                {error && (
+                  <div className="p-3 rounded-xl bg-destructive/10 border border-destructive/30 animate-blur-in">
+                    <p className="text-destructive text-[12px] text-center font-medium">{error}</p>
+                  </div>
+                )}
+
+                <PrimaryButton loading={loading}>
+                  <LogIn className="w-4 h-4" /> Se connecter
+                </PrimaryButton>
+
+                <button
+                  type="button"
+                  onClick={() => navigate("/forgot-password")}
+                  className="w-full text-center text-[12px] font-semibold text-foreground/55 hover:text-[hsl(var(--gold))] transition py-2"
+                >
+                  Mot de passe oublié ?
+                </button>
+              </form>
+
+              <div className="flex items-center gap-3">
+                <div className="flex-1 h-px bg-[hsl(var(--gold)/0.15)]" />
+                <span className="text-[10px] uppercase tracking-[0.3em] text-foreground/40 font-bold">ou</span>
+                <div className="flex-1 h-px bg-[hsl(var(--gold)/0.15)]" />
+              </div>
+
+              <button
+                onClick={() => navigate("/signup")}
+                className="w-full h-12 rounded-2xl border border-[hsl(var(--gold)/0.4)] bg-[hsl(var(--gold)/0.06)] hover:bg-[hsl(var(--gold)/0.12)] text-[hsl(var(--gold-soft))] font-bold text-[14px] flex items-center justify-center gap-2 transition active:scale-[0.98]"
+              >
+                <UserPlus className="w-4 h-4" />
+                Créer un nouveau compte
+                <ChevronRight className="w-4 h-4" />
+              </button>
+            </div>
+          )}
+
+          <p className="mt-8 flex items-center justify-center gap-1.5 text-[10px] uppercase tracking-[0.3em] text-foreground/40">
+            <ShieldCheck className="w-3 h-3 text-[hsl(var(--gold))]" />
+            Sécurisé · Chiffré · Jeux d'Hazard
+          </p>
         </div>
-
-        <p className="text-center text-[10px] text-foreground/40 mt-6 px-4 leading-relaxed">
-          En vous connectant, vous acceptez nos conditions d'utilisation et confirmez avoir lu notre politique de confidentialité.
-        </p>
-      </div>
+      </main>
     </div>
   );
 };
+
+/* --------- Sub components --------- */
+
+const Avatar = ({
+  name,
+  url,
+  size = "md",
+}: {
+  name: string;
+  url: string | null;
+  size?: "md" | "lg";
+}) => {
+  const dim = size === "lg" ? "w-14 h-14 text-[16px]" : "w-16 h-16 text-[18px]";
+  return (
+    <div
+      className={`${dim} rounded-full overflow-hidden ring-2 ring-[hsl(var(--gold)/0.4)] shadow-[0_10px_30px_-10px_hsl(42_82%_45%/0.45)] shrink-0`}
+    >
+      {url ? (
+        <img src={url} alt={name} className="w-full h-full object-cover" />
+      ) : (
+        <div className="w-full h-full gold-gradient flex items-center justify-center text-[hsl(158_60%_8%)] font-black">
+          {initialsFrom(name)}
+        </div>
+      )}
+    </div>
+  );
+};
+
+const PrimaryButton = ({
+  loading,
+  children,
+}: {
+  loading: boolean;
+  children: React.ReactNode;
+}) => (
+  <button
+    type="submit"
+    disabled={loading}
+    className="group relative w-full h-13 py-4 rounded-2xl gold-gradient text-[hsl(158_60%_8%)] font-bold shadow-[0_20px_40px_-12px_hsl(42_82%_45%_/_0.55)] transition-all active:scale-[0.98] disabled:opacity-70 disabled:cursor-not-allowed overflow-hidden font-display"
+  >
+    <span className="pointer-events-none absolute -inset-y-2 -left-1/3 w-1/3 rotate-12 bg-gradient-to-r from-transparent via-white/60 to-transparent opacity-0 group-hover:opacity-100 group-hover:[animation:premium-sweep_1.4s_ease-in-out_infinite]" />
+    {loading ? (
+      <Loader2 className="w-5 h-5 animate-spin mx-auto relative" />
+    ) : (
+      <span className="relative inline-flex items-center justify-center gap-2 text-[15px] uppercase tracking-[0.14em]">
+        {children}
+      </span>
+    )}
+  </button>
+);
 
 export default Login;

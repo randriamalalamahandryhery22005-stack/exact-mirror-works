@@ -30,6 +30,7 @@ import { COUNTRIES } from "@/lib/countries";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import jhLogo from "@/assets/jh-logo.png";
+import { rememberCurrentAccount } from "@/lib/savedAccounts";
 
 /* ------------------------------------------------------------------ */
 /*  Validation (unchanged business logic)                             */
@@ -338,6 +339,14 @@ const Signup = () => {
       if (profileErr) throw new Error("Impossible d'enregistrer le profil : " + profileErr.message);
 
       await refreshProfile();
+      // Remember this account on this device (Facebook-style quick relogin)
+      try {
+        await rememberCurrentAccount(userId, {
+          identifier: signupMethod === "email" ? cleanEmail : cleanPhone,
+          method: signupMethod,
+          displayName: formData.fullName,
+        });
+      } catch { /* non-blocking */ }
       toast.success("Bienvenue chez Jeux d'Hazard");
       navigate("/games");
     } catch (err: any) {
@@ -360,21 +369,27 @@ const Signup = () => {
 
   /* ================================================== */
   return (
-    <div className="relative min-h-[100dvh] overflow-hidden flex flex-col">
+    <div className="relative min-h-[100dvh] overflow-hidden flex flex-col bg-[hsl(158_60%_3%)]">
       {/* Ambient background — Émeraude Prestige */}
-      <div className="absolute inset-0 -z-10">
-        <div className="absolute -top-24 -right-16 w-[26rem] h-[26rem] rounded-full bg-[hsl(152_72%_35%_/_0.32)] blur-3xl animate-aurora" />
+      <div className="absolute inset-0 -z-10 pointer-events-none">
+        <div className="absolute -top-24 -right-16 w-[26rem] h-[26rem] rounded-full bg-[hsl(152_72%_28%_/_0.4)] blur-[110px] animate-aurora" />
         <div
-          className="absolute -bottom-32 -left-20 w-[24rem] h-[24rem] rounded-full bg-[hsl(42_82%_50%_/_0.22)] blur-3xl animate-aurora"
+          className="absolute -bottom-32 -left-20 w-[24rem] h-[24rem] rounded-full bg-[hsl(42_82%_45%_/_0.22)] blur-[110px] animate-aurora"
           style={{ animationDelay: "1.6s" }}
         />
         <div
-          className="absolute inset-0 opacity-[0.05]"
+          className="absolute inset-0 flex items-center justify-center opacity-[0.03] select-none"
+          aria-hidden
+        >
+          <span className="font-display text-[22rem] font-black text-[hsl(42_82%_55%)] leading-none">JH</span>
+        </div>
+        <div
+          className="absolute inset-0 opacity-[0.04]"
           style={{
             backgroundImage:
-              "linear-gradient(hsl(var(--gold)/0.4) 1px, transparent 1px), linear-gradient(90deg, hsl(var(--gold)/0.4) 1px, transparent 1px)",
-            backgroundSize: "48px 48px",
-            maskImage: "radial-gradient(ellipse at center, black 40%, transparent 78%)",
+              "linear-gradient(hsl(var(--gold)/0.5) 1px, transparent 1px), linear-gradient(90deg, hsl(var(--gold)/0.5) 1px, transparent 1px)",
+            backgroundSize: "56px 56px",
+            maskImage: "radial-gradient(ellipse at center, black 30%, transparent 78%)",
           }}
         />
       </div>
@@ -385,7 +400,7 @@ const Signup = () => {
           <button
             onClick={handleBack}
             aria-label="Retour"
-            className="p-2.5 rounded-2xl bg-foreground/[0.04] border border-border hover:border-[hsl(var(--gold)/0.4)] hover:bg-foreground/[0.07] transition active:scale-95"
+            className="p-2.5 rounded-2xl bg-white/[0.04] border border-[hsl(var(--gold)/0.2)] hover:border-[hsl(var(--gold)/0.5)] hover:bg-[hsl(var(--gold)/0.08)] transition active:scale-95"
           >
             <ArrowLeft className="w-4 h-4" />
           </button>
@@ -400,18 +415,18 @@ const Signup = () => {
                 }}
               />
               <div
-                className="relative w-11 h-11 rounded-2xl overflow-hidden ring-1 ring-[hsl(var(--gold)/0.35)]"
+                className="relative w-11 h-11 rounded-2xl overflow-hidden ring-1 ring-[hsl(var(--gold)/0.4)]"
                 style={{ boxShadow: "0 10px 30px -8px hsl(42 82% 45% / 0.5)" }}
               >
                 <img src={jhLogo} alt="Jeux d'Hazard" className="w-full h-full object-cover" />
               </div>
             </div>
             <div className="min-w-0">
-              <h1 className="font-display text-[17px] font-bold leading-tight tracking-tight">
+              <h1 className="font-display text-[19px] font-bold leading-tight tracking-tight">
                 <span className="gold-text">Créer un compte</span>
               </h1>
-              <p className="text-[10px] uppercase tracking-[0.3em] text-foreground/50 mt-0.5">
-                Étape {step} / {STEPS.length} · Jeux d'Hazard
+              <p className="text-[11px] text-foreground/55 mt-0.5">
+                Étape <span className="text-[hsl(var(--gold))] font-bold">{step}</span> / {STEPS.length} · {meta.title}
               </p>
             </div>
           </div>
@@ -473,8 +488,8 @@ const Signup = () => {
 
         {/* Card */}
         <div className="relative flex-1 flex flex-col">
-          <div className="p-[1.5px] rounded-3xl bg-gradient-to-br from-[hsl(var(--gold)/0.55)] via-border to-[hsl(var(--gold)/0.55)]">
-            <div className="rounded-[calc(1.5rem-1.5px)] bg-card/95 backdrop-blur-xl p-5 flex flex-col gap-4">
+          <div className="p-[1.5px] rounded-[28px] bg-gradient-to-br from-[hsl(var(--gold)/0.55)] via-[hsl(var(--gold)/0.08)] to-[hsl(var(--gold)/0.55)] shadow-[0_40px_100px_-25px_hsl(158_80%_2%/0.9)]">
+            <div className="relative rounded-[26.5px] bg-[hsl(158_60%_5%_/_0.85)] backdrop-blur-2xl border border-[hsl(var(--gold)/0.15)] p-5 flex flex-col gap-4 overflow-hidden">
               {/* Step header inline */}
               <div className="flex items-center gap-3">
                 <div
@@ -930,20 +945,17 @@ const Signup = () => {
                   </p>
 
                   <div className="relative pt-3 border-t border-border/60">
-                    <p className="text-center text-[10px] uppercase tracking-[0.28em] text-foreground/45 mb-3">
-                      Ou retrouvez votre compte
-                    </p>
                     <button
-                      onClick={() => navigate("/")}
+                      onClick={() => navigate("/login")}
                       className="w-full flex items-center gap-3 p-3.5 rounded-2xl bg-foreground/[0.03] hover:bg-foreground/[0.06] border border-border hover:border-[hsl(var(--gold)/0.4)] transition active:scale-[0.98]"
                     >
                       <div className="w-10 h-10 rounded-xl bg-[hsl(var(--gold)/0.15)] border border-[hsl(var(--gold)/0.3)] flex items-center justify-center shrink-0">
                         <Search className="w-4 h-4 text-[hsl(var(--gold))]" />
                       </div>
                       <div className="flex-1 text-left min-w-0">
-                        <p className="text-sm font-bold">Rechercher mon compte</p>
+                        <p className="text-sm font-bold">Retrouver un compte existant</p>
                         <p className="text-[10px] text-foreground/50 leading-snug">
-                          Nom, e-mail ou téléphone
+                          Comptes déjà utilisés sur cet appareil
                         </p>
                       </div>
                       <ArrowRight className="w-4 h-4 text-foreground/40" />

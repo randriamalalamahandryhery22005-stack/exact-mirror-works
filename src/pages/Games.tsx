@@ -100,25 +100,17 @@ const Games = () => {
     );
   }
 
-  const greeting = (() => {
-    const h = new Date().getHours();
-    if (h < 6) return "Bonne nuit";
-    if (h < 12) return "Bonjour";
-    if (h < 18) return "Bon après-midi";
-    return "Bonsoir";
-  })();
   const totalGames = BET261_GAMES.filter(g => g.available).length + ONEXBET_GAMES.filter(g => g.available).length;
-  const totalOnline = gameStats.reduce((s, g) => s + (g.online_users || 0), 0);
 
   return (
     <div className="min-h-screen flex flex-col">
       <InfoModal />
-      {/* Header — modernized welcome */}
+      {/* Header — brand tile (no greeting, no username) */}
       <header className="relative px-5 pt-5 pb-4 border-b border-border/40 bg-gradient-to-br from-primary/15 via-card/60 to-background overflow-hidden animate-blur-in">
         <div className="absolute -top-16 -right-16 w-48 h-48 rounded-full bg-primary/15 blur-3xl pointer-events-none animate-aurora" />
         <div className="absolute -bottom-10 -left-10 w-40 h-40 rounded-full bg-amber-500/10 blur-3xl pointer-events-none animate-aurora" style={{ animationDelay: "2s" }} />
 
-        <div className="relative flex items-center justify-between gap-2">
+        <div className="relative flex items-center justify-between gap-3">
           <div className="flex items-center gap-3 min-w-0">
             <div className="relative flex-shrink-0">
               <div className="absolute inset-[-4px] rounded-2xl opacity-70 pointer-events-none"
@@ -127,28 +119,34 @@ const Games = () => {
                   animation: "orbit-ring 5s linear infinite",
                   filter: "blur(6px)",
                 }} />
-              <div className="relative w-11 h-11 rounded-2xl gold-gradient flex items-center justify-center shadow-lg shadow-primary/30">
-                <Gamepad2 className="w-5 h-5 text-primary-foreground" />
+              <div className="relative w-12 h-12 rounded-2xl gold-gradient flex items-center justify-center shadow-lg shadow-primary/30">
+                <span className="text-primary-foreground font-black text-sm tracking-tight">J&amp;H</span>
               </div>
-              <div className="absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full bg-emerald-400 ring-2 ring-background live-dot" />
             </div>
             <div className="min-w-0">
-              <p className="text-[10px] uppercase tracking-widest text-muted-foreground">{greeting}</p>
-              <h1 className="text-base font-black tracking-tight text-shine leading-tight truncate">
-                {profile?.full_name || "Joueur"}
+              <div className="flex items-center gap-1.5">
+                <span className="text-[9px] uppercase tracking-[0.24em] text-[hsl(var(--gold-soft))] font-bold">Premium</span>
+                <span className="w-1 h-1 rounded-full bg-[hsl(var(--gold))]" />
+                <span className="text-[9px] uppercase tracking-widest text-muted-foreground font-semibold">v0.0.1</span>
+              </div>
+              <h1 className="text-lg font-black tracking-tight text-shine leading-tight truncate">
+                Jeux d'Hazard
               </h1>
-              <p className="text-[10px] text-muted-foreground mt-0.5 flex items-center gap-1">
-                {isAdmin ? (
-                  <span className="inline-flex items-center gap-1 text-primary font-bold"><Shield className="w-3 h-3" /> Administrateur</span>
-                ) : (
-                  <span className="inline-flex items-center gap-1"><span className="w-1.5 h-1.5 rounded-full bg-emerald-400 live-dot" /> En ligne</span>
-                )}
+              <p className="text-[10px] text-muted-foreground mt-0.5 flex items-center gap-1.5">
+                <span className="inline-flex items-center gap-1"><span className="w-1.5 h-1.5 rounded-full bg-emerald-400 live-dot" /> Session sécurisée</span>
               </p>
             </div>
           </div>
+
+          {isAdmin && (
+            <span className="text-[9px] px-2 py-1 rounded-full border border-primary/40 bg-primary/10 text-primary font-bold flex items-center gap-1 flex-shrink-0">
+              <Shield className="w-3 h-3" /> Admin
+            </span>
+          )}
         </div>
 
       </header>
+
 
       <OptionalUpdateBanner />
 
