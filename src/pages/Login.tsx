@@ -53,6 +53,7 @@ const Login = () => {
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const [rememberMe, setRememberMe] = useState(true);
 
   useEffect(() => {
     const list = getSavedAccounts();
@@ -82,9 +83,12 @@ const Login = () => {
     try {
       const { data, error } = await supabase.auth.signInWithPassword(payload as any);
       if (error) throw error;
-      if (data.user) {
+      if (data.user && rememberMe) {
         await rememberCurrentAccount(data.user.id, fallback);
       }
+      try {
+        localStorage.setItem("jh_remember_me", rememberMe ? "1" : "0");
+      } catch { /* no-op */ }
       toast.success("Connexion réussie !");
       navigate("/games");
     } catch (err: any) {
@@ -392,6 +396,17 @@ const Login = () => {
                     <p className="text-destructive text-[12px] text-center font-medium">{error}</p>
                   </div>
                 )}
+
+                <label className="flex items-center gap-2.5 px-1 cursor-pointer select-none">
+                  <input
+                    type="checkbox"
+                    checked={rememberMe}
+                    onChange={(e) => setRememberMe(e.target.checked)}
+                    className="w-4 h-4 rounded accent-[hsl(var(--gold))]"
+                  />
+                  <span className="text-[12px] font-semibold text-foreground/70">Se souvenir de moi</span>
+                </label>
+
 
                 <PrimaryButton loading={loading}>
                   <LogIn className="w-4 h-4" /> Se connecter

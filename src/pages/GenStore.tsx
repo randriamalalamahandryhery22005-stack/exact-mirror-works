@@ -6,6 +6,7 @@ import {
   ArrowLeft, Download, Star, MessageSquare, Image as ImageIcon,
   Music, Video, FileArchive, FileText, Smartphone, FolderOpen, Send,
   X, Loader2, Sparkles, Crown, TrendingUp, Search, Flame,
+  Megaphone, Link as LinkIcon, ExternalLink,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -13,17 +14,23 @@ import { toast } from "sonner";
 import BottomNav from "@/components/BottomNav";
 import { useUnreadStore } from "@/hooks/useUnreadStore";
 import AdminGenStorePanel from "@/components/AdminGenStorePanel";
+import { downloadItem, hasFile, resolveFileUrl, type GenStoreItem } from "@/lib/genStore";
 
 const CATEGORIES = [
   { id: "all", label: "Tous", icon: Sparkles },
+  { id: "annonce", label: "Annonces", icon: Megaphone },
   { id: "image", label: "Images", icon: ImageIcon },
   { id: "music", label: "Musique", icon: Music },
   { id: "video", label: "Vidéos", icon: Video },
   { id: "apk", label: "APK", icon: Smartphone },
   { id: "zip", label: "Archives", icon: FileArchive },
   { id: "folder", label: "Dossiers", icon: FolderOpen },
+  { id: "link", label: "Liens", icon: LinkIcon },
   { id: "other", label: "Autres", icon: FileText },
 ];
+
+const FALLBACK_CATEGORY = CATEGORIES[CATEGORIES.length - 1];
+const catOf = (id: string) => CATEGORIES.find((c) => c.id === id) || FALLBACK_CATEGORY;
 
 const SORTS = [
   { id: "recent", label: "Récents", icon: Sparkles },
@@ -31,20 +38,7 @@ const SORTS = [
   { id: "popular", label: "Populaires", icon: TrendingUp },
 ];
 
-interface Item {
-  id: string;
-  title: string;
-  description: string;
-  category: string;
-  file_path: string;
-  file_url: string | null;
-  file_name: string;
-  file_size: number;
-  mime_type: string | null;
-  thumbnail_url: string | null;
-  download_count: number;
-  created_at: string;
-}
+type Item = GenStoreItem;
 
 interface Review {
   id: string;
@@ -82,11 +76,16 @@ const GenStore = () => {
   const [showPublish, setShowPublish] = useState(false);
 
   const load = async () => {
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from("gen_store_items")
       .select("*")
       .eq("is_published", true)
       .order("created_at", { ascending: false });
+    if (error) {
+      setLoading(false);
+      toast.error("Impossible de charger la boutique");
+      return;
+    }
     const list = (data as any) || [];
     setItems(list);
     setLoading(false);
@@ -158,30 +157,22 @@ const GenStore = () => {
   };
 
   const handleDownload = async (item: Item) => {
-    try {
-      let url = item.file_url;
-      if (!url) {
-        const { data } = await supabase.storage
-          .from("gen-store")
-          .createSignedUrl(item.file_path, 60 * 60);
-        url = data?.signedUrl || null;
+    if (!hasFile(item)) {
+      if (item.link_url) {
+        window.open(item.link_url, "_blank", "noopener");
+        return;
       }
-      if (!url) throw new Error("Lien indisponible");
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = item.file_name;
-      a.target = "_blank";
-      a.rel = "noopener";
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      await supabase
-        .from("gen_store_items")
-        .update({ download_count: (item.download_count || 0) + 1 })
-        .eq("id", item.id);
+      toast.error("Aucun fichier joint à cette publication");
+      return;
+    }
+    try {
+      await downloadItem(item);
+      setItems((prev) =>
+        prev.map((i) => (i.id === item.id ? { ...i, download_count: (i.download_count || 0) + 1 } : i)),
+      );
       toast.success("Téléchargement lancé");
     } catch (e: any) {
-      toast.error(e.message || "Erreur");
+      toast.error(e.message || "Téléchargement impossible");
     }
   };
 
@@ -261,7 +252,19 @@ const GenStore = () => {
 
         {showPublish && (
           <div className="relative mb-4">
-            <AdminGenStorePanel />
+            {user ? (
+              <AdminGenStorePanel onPublished={load} />
+            ) : (
+              <div className="p-5 rounded-2xl bg-card border border-border/40 text-center space-y-3">
+                <p className="text-sm font-bold">Connectez-vous pour publier</p>
+                <p className="text-xs text-muted-foreground">
+                  Annonces, images, vidéos, documents : tout se publie depuis votre compte.
+                </p>
+                <Button variant="premium" size="sm" onClick={() => navigate("/login")}>
+                  Se connecter
+                </Button>
+              </div>
+            )}
           </div>
         )}
 
@@ -387,7 +390,7 @@ const GenStore = () => {
 };
 
 const CategoryBadge = ({ id }: { id: string }) => {
-  const cat = CATEGORIES.find((c) => c.id === id) || CATEGORIES[7];
+  const cat = catOf(id);
   const Icon = cat.icon;
   return (
     <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-background/85 backdrop-blur text-[9px] font-bold uppercase tracking-wider border border-border/40">
@@ -396,6 +399,28 @@ const CategoryBadge = ({ id }: { id: string }) => {
     </span>
   );
 };
+
+/** Resolves a displayable URL for an item's media (public or signed). */
+const useMediaUrl = (item: Item, enabled: boolean) => {
+  const [url, setUrl] = useState<string | null>(null);
+  useEffect(() => {
+    let alive = true;
+    if (!enabled || !hasFile(item)) {
+      setUrl(null);
+      return;
+    }
+    resolveFileUrl(item).then((u) => {
+      if (alive) setUrl(u);
+    });
+    return () => {
+      alive = false;
+    };
+  }, [item.id, item.file_path, item.file_url, enabled]);
+  return url;
+};
+
+const isMedia = (item: Item) =>
+  item.category === "image" || (item.mime_type || "").startsWith("image/");
 
 const Stars = ({ value, size = "w-3 h-3" }: { value: number; size?: string }) => (
   <div className="flex">
@@ -417,17 +442,17 @@ const FeaturedCard = ({
   rating?: { avg: number; count: number };
   onOpen: () => void;
 }) => {
-  const cat = CATEGORIES.find((c) => c.id === item.category) || CATEGORIES[7];
+  const cat = catOf(item.category);
   const Icon = cat.icon;
-  const isImage = item.category === "image" && item.file_url;
+  const preview = useMediaUrl(item, isMedia(item));
   return (
     <button
       onClick={onOpen}
       className="relative w-full rounded-3xl overflow-hidden border border-primary/30 bg-card text-left group active:scale-[0.99] transition-transform"
     >
       <div className="aspect-[16/9] relative bg-gradient-to-br from-primary/30 to-primary/5">
-        {isImage ? (
-          <img src={item.file_url!} alt={item.title} className="w-full h-full object-cover" />
+        {preview ? (
+          <img src={preview} alt={item.title} className="w-full h-full object-cover" />
         ) : (
           <div className="w-full h-full flex items-center justify-center">
             <Icon className="w-16 h-16 text-primary/50" />
@@ -447,11 +472,16 @@ const FeaturedCard = ({
         <CategoryBadge id={item.category} />
         <h2 className="text-lg font-black leading-tight">{item.title}</h2>
         <div className="flex items-center gap-3 text-[11px] text-muted-foreground">
-          <span className="flex items-center gap-1">
-            <Download className="w-3 h-3" /> {item.download_count}
-          </span>
-          <span>·</span>
-          <span>{formatBytes(Number(item.file_size))}</span>
+          {hasFile(item) && (
+            <>
+              <span className="flex items-center gap-1">
+                <Download className="w-3 h-3" /> {item.download_count}
+              </span>
+              <span>·</span>
+              <span>{formatBytes(Number(item.file_size))}</span>
+            </>
+          )}
+          {!hasFile(item) && <span>{cat.label}</span>}
           {rating && rating.count > 0 && (
             <>
               <span>·</span>
@@ -476,24 +506,29 @@ const ProductCard = ({
   rating?: { avg: number; count: number };
   onOpen: () => void;
 }) => {
-  const cat = CATEGORIES.find((c) => c.id === item.category) || CATEGORIES[7];
+  const cat = catOf(item.category);
   const Icon = cat.icon;
-  const isImage = item.category === "image" && item.file_url;
+  const preview = useMediaUrl(item, isMedia(item));
   return (
     <button
       onClick={onOpen}
       className="group relative rounded-2xl overflow-hidden bg-card border border-border/40 hover:border-primary/50 hover:shadow-lg hover:shadow-primary/10 transition-all text-left active:scale-[0.97]"
     >
       <div className="aspect-square relative bg-gradient-to-br from-primary/15 to-primary/5 overflow-hidden">
-        {isImage ? (
+        {preview ? (
           <img
-            src={item.file_url!}
+            src={preview}
             alt={item.title}
             className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
           />
         ) : (
-          <div className="w-full h-full flex items-center justify-center">
-            <Icon className="w-12 h-12 text-primary/50 group-hover:scale-110 transition-transform" />
+          <div className="w-full h-full flex flex-col items-center justify-center gap-2 p-3 text-center">
+            <Icon className="w-10 h-10 text-primary/50 group-hover:scale-110 transition-transform" />
+            {!hasFile(item) && (
+              <p className="text-[10px] text-muted-foreground line-clamp-3 leading-snug">
+                {item.body || item.description}
+              </p>
+            )}
           </div>
         )}
         <div className="absolute top-2 left-2">
@@ -514,10 +549,12 @@ const ProductCard = ({
       <div className="p-2.5 space-y-1">
         <p className="font-bold text-xs truncate leading-tight">{item.title}</p>
         <div className="flex items-center justify-between text-[10px] text-muted-foreground">
-          <span>{formatBytes(Number(item.file_size))}</span>
-          <span className="flex items-center gap-0.5">
-            <Download className="w-2.5 h-2.5" /> {item.download_count}
-          </span>
+          <span>{hasFile(item) ? formatBytes(Number(item.file_size)) : cat.label}</span>
+          {hasFile(item) && (
+            <span className="flex items-center gap-0.5">
+              <Download className="w-2.5 h-2.5" /> {item.download_count}
+            </span>
+          )}
         </div>
       </div>
     </button>
@@ -537,7 +574,13 @@ const DetailModal = ({
   onSubmit,
   onClose,
   onDownload,
-}: any) => (
+}: any) => {
+  const media = useMediaUrl(item, hasFile(item));
+  const mime = (item.mime_type || "") as string;
+  const isImg = media && (item.category === "image" || mime.startsWith("image/"));
+  const isVid = media && (item.category === "video" || mime.startsWith("video/"));
+  const isAud = media && (item.category === "music" || mime.startsWith("audio/"));
+  return (
   <div className="fixed inset-0 z-50 bg-background/95 backdrop-blur-md flex flex-col">
     <div className="px-4 py-3 border-b border-border/40 flex items-center gap-3 sticky top-0 bg-background/95 backdrop-blur">
       <button onClick={onClose} className="p-2 rounded-lg hover:bg-secondary/60">
@@ -548,21 +591,24 @@ const DetailModal = ({
     </div>
 
     <div className="flex-1 overflow-y-auto px-4 py-4 space-y-5 max-w-md mx-auto w-full">
-      <div className="rounded-2xl overflow-hidden bg-card border border-border/40 aspect-video flex items-center justify-center">
-        {item.category === "image" && item.file_url ? (
-          <img src={item.file_url} alt={item.title} className="w-full h-full object-contain" />
-        ) : item.category === "video" && item.file_url ? (
-          <video src={item.file_url} controls className="w-full h-full" />
-        ) : item.category === "music" && item.file_url ? (
-          <audio src={item.file_url} controls className="w-full" />
-        ) : (
-          <div className="flex flex-col items-center gap-2 text-muted-foreground">
-            <FileText className="w-12 h-12" />
-            <p className="text-xs">{item.file_name}</p>
-          </div>
-        )}
-      </div>
+      {hasFile(item) && (
+        <div className="rounded-2xl overflow-hidden bg-card border border-border/40 aspect-video flex items-center justify-center">
+          {isImg ? (
+            <img src={media!} alt={item.title} className="w-full h-full object-contain" />
+          ) : isVid ? (
+            <video src={media!} controls playsInline className="w-full h-full" />
+          ) : isAud ? (
+            <audio src={media!} controls className="w-full px-4" />
+          ) : (
+            <div className="flex flex-col items-center gap-2 text-muted-foreground">
+              <FileText className="w-12 h-12" />
+              <p className="text-xs px-4 text-center break-all">{item.file_name}</p>
+            </div>
+          )}
+        </div>
+      )}
 
+      {hasFile(item) && (
       <div className="grid grid-cols-3 gap-2">
         <div className="p-3 rounded-xl bg-card border border-border/40 text-center">
           <Download className="w-3.5 h-3.5 mx-auto text-primary mb-1" />
@@ -582,15 +628,26 @@ const DetailModal = ({
           <p className="text-[9px] uppercase tracking-wider text-muted-foreground">Taille</p>
         </div>
       </div>
+      )}
 
       <div className="space-y-1.5">
         <p className="text-[10px] uppercase tracking-wider text-muted-foreground font-bold">Description</p>
-        <p className="text-sm leading-relaxed whitespace-pre-wrap">{item.description}</p>
+        <p className="text-sm leading-relaxed whitespace-pre-wrap">{item.body || item.description}</p>
       </div>
 
-      <Button variant="premium" className="w-full h-12 text-base" onClick={onDownload}>
-        <Download className="w-4 h-4 mr-2" /> Télécharger
-      </Button>
+      {item.link_url && (
+        <a href={item.link_url} target="_blank" rel="noopener noreferrer" className="block">
+          <Button variant="premium" className="w-full h-12 text-base">
+            <ExternalLink className="w-4 h-4 mr-2" /> Ouvrir le lien
+          </Button>
+        </a>
+      )}
+
+      {hasFile(item) && (
+        <Button variant="premium" className="w-full h-12 text-base" onClick={onDownload}>
+          <Download className="w-4 h-4 mr-2" /> Télécharger
+        </Button>
+      )}
 
       <div className="space-y-3 pt-3 border-t border-border/40">
         <h3 className="font-bold text-sm flex items-center gap-2">
@@ -646,6 +703,7 @@ const DetailModal = ({
       </div>
     </div>
   </div>
-);
+  );
+};
 
 export default GenStore;

@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import jhLogo from "@/assets/jh-logo.png";
-import welcomeMusic from "@/assets/welcome-music.mp3.asset.json";
+import welcomeMusic from "@/assets/welcome-theme-v5.mp3.asset.json";
+import { takeWelcomeAudio, fadeAudio } from "@/lib/introAudio";
 
 /**
  * Écran d'accueil animé affiché juste après le SplashScreen.
@@ -11,9 +12,10 @@ import welcomeMusic from "@/assets/welcome-music.mp3.asset.json";
  * pour qu'elle soit jouée automatiquement par-dessus la musique.
  */
 
-const TOTAL_MS = 5200;      // Durée totale de l'intro
-const FADE_START_MS = 3600; // Début du fondu sortant
-const FADE_STEPS = 24;
+const FALLBACK_TOTAL_MS = 5400; // Repli si la durée réelle est inconnue
+const FADE_IN_MS = 900;         // Fondu entrant, en relais du fondu du Splash
+const FADE_OUT_MS = 1200;       // Fondu sortant avant la sortie de l'écran
+const TAIL_MS = 500;            // Petit silence après la piste
 
 interface Props {
   onComplete: () => void;
@@ -27,25 +29,50 @@ const WelcomeIntro = ({ onComplete, voiceUrl }: Props) => {
   const doneRef = useRef(false);
 
   useEffect(() => {
-    // Musique de fond
-    const music = new Audio(welcomeMusic.url);
-    music.preload = "auto";
-    music.volume = 0.9;
-    (music as HTMLAudioElement & { playsInline?: boolean }).playsInline = true;
-    music.setAttribute("playsinline", "");
-    music.setAttribute("webkit-playsinline", "");
+    // Musique de bienvenue : élément préchargé pendant le Splash → démarrage instantané
+    const music = takeWelcomeAudio(welcomeMusic.url);
+    music.currentTime = 0;
+    music.volume = 0;
     musicRef.current = music;
 
-    const tryPlay = () => {
-      const p = music.play();
-      if (p && typeof p.then === "function") {
-        p.catch(() => {
-          music.muted = true;
-          music.play().then(() => { setTimeout(() => { music.muted = false; }, 0); }).catch(() => { /* noop */ });
-        });
-      }
+    const timers: number[] = [];
+
+    const startFades = () => {
+      // Fondu entrant qui prend le relais du fondu sortant du Splash
+      fadeAudio(music, 0.95, FADE_IN_MS);
+      const trackMs = Number.isFinite(music.duration) && music.duration > 0
+        ? music.duration * 1000
+        : FALLBACK_TOTAL_MS;
+      const totalMs = Math.max(3200, trackMs + TAIL_MS);
+      timers.push(window.setTimeout(() => fadeAudio(music, 0, FADE_OUT_MS), Math.max(0, totalMs - FADE_OUT_MS)));
+      timers.push(window.setTimeout(() => {
+        if (doneRef.current) return;
+        doneRef.current = true;
+        setLeaving(true);
+        window.setTimeout(() => {
+          try { music.pause(); music.src = ""; } catch { /* noop */ }
+          try { voiceRef.current?.pause(); if (voiceRef.current) voiceRef.current.src = ""; } catch { /* noop */ }
+          onComplete();
+        }, 400);
+      }, totalMs));
     };
-    tryPlay();
+
+    const begin = () => {
+      if (music.readyState >= 1) startFades();
+      else music.addEventListener("loadedmetadata", startFades, { once: true });
+    };
+
+    const p = music.play();
+    if (p && typeof p.then === "function") {
+      p.then(begin).catch(() => {
+        music.muted = true;
+        music.play()
+          .then(() => { setTimeout(() => { music.muted = false; }, 0); begin(); })
+          .catch(() => { begin(); });
+      });
+    } else {
+      begin();
+    }
 
     // Voix off optionnelle
     if (voiceUrl) {
@@ -59,35 +86,9 @@ const WelcomeIntro = ({ onComplete, voiceUrl }: Props) => {
       setTimeout(() => { voice.play().catch(() => { /* noop */ }); }, 500);
     }
 
-    // Fondu sortant de la musique
-    const fadeDuration = TOTAL_MS - FADE_START_MS;
-    const stepMs = fadeDuration / FADE_STEPS;
-    const fadeTimer = window.setTimeout(() => {
-      const startVol = music.volume;
-      let i = 0;
-      const iv = window.setInterval(() => {
-        i += 1;
-        const v = Math.max(0, startVol * (1 - i / FADE_STEPS));
-        try { music.volume = v; } catch { /* noop */ }
-        if (i >= FADE_STEPS) window.clearInterval(iv);
-      }, stepMs);
-    }, FADE_START_MS);
-
-    // Fin de l'intro
-    const endTimer = window.setTimeout(() => {
-      if (doneRef.current) return;
-      doneRef.current = true;
-      setLeaving(true);
-      setTimeout(() => {
-        try { music.pause(); music.src = ""; } catch { /* noop */ }
-        try { voiceRef.current?.pause(); if (voiceRef.current) voiceRef.current.src = ""; } catch { /* noop */ }
-        onComplete();
-      }, 400);
-    }, TOTAL_MS);
-
     return () => {
-      window.clearTimeout(fadeTimer);
-      window.clearTimeout(endTimer);
+      timers.forEach((t) => window.clearTimeout(t));
+      music.removeEventListener("loadedmetadata", startFades);
       try { music.pause(); music.src = ""; } catch { /* noop */ }
       try { voiceRef.current?.pause(); if (voiceRef.current) voiceRef.current.src = ""; } catch { /* noop */ }
     };

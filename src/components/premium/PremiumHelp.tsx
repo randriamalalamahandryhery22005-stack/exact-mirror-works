@@ -56,13 +56,19 @@ const PremiumHelp = () => {
               </div>
             </div>
           </div>
-          <div className="grid grid-cols-1 gap-2">
+          <div className="grid grid-cols-2 gap-2">
+            <a href="https://wa.me/261379594257" target="_blank" rel="noopener noreferrer">
+              <Button variant="outline" className="w-full h-10 text-xs font-semibold">
+                <MessageCircle className="w-3.5 h-3.5 mr-1.5" /> WhatsApp
+              </Button>
+            </a>
             <a href="mailto:jeuxdhazardmada@gmail.com">
               <Button variant="outline" className="w-full h-10 text-xs font-semibold">
                 <Mail className="w-3.5 h-3.5 mr-1.5" /> Email
               </Button>
             </a>
           </div>
+
         </div>
       </section>
 

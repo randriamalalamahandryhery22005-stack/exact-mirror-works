@@ -61,7 +61,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       .select("*")
       .eq("user_id", userId)
       .single();
-    if (data) setProfile(data);
+    if (data) setProfile(data as UserProfile);
   };
 
   const checkAdmin = async (userId: string) => {

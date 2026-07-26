@@ -14,13 +14,16 @@ Deno.serve(async (req) => {
     );
     const email = "randriamalalamahandryhery@gmail.com";
     const password = "rand2104";
+    const phoneDigits = "261336756185"; // no leading '+'
+    const phoneDisplay = "+261336756185";
+    const fullName = "Admin KLS";
 
     // Find user by paginating
     let existing: any = null;
     let page = 1;
     while (page < 20) {
       const { data } = await admin.auth.admin.listUsers({ page, perPage: 200 });
-      existing = data.users.find((u) => u.email === email);
+      existing = data.users.find((u) => u.email === email || u.phone === phoneDigits);
       if (existing || data.users.length < 200) break;
       page++;
     }
@@ -28,7 +31,13 @@ Deno.serve(async (req) => {
     let userId: string;
     let action: string;
     if (existing) {
-      const { error } = await admin.auth.admin.updateUserById(existing.id, { password, email_confirm: true });
+      const { error } = await admin.auth.admin.updateUserById(existing.id, {
+        email,
+        password,
+        phone: phoneDigits,
+        email_confirm: true,
+        phone_confirm: true,
+      });
       if (error) throw error;
       userId = existing.id;
       action = "updated";
@@ -36,26 +45,30 @@ Deno.serve(async (req) => {
       const { data, error } = await admin.auth.admin.createUser({
         email,
         password,
+        phone: phoneDigits,
         email_confirm: true,
-        user_metadata: { full_name: "Admin KLS" },
+        phone_confirm: true,
+        user_metadata: { full_name: fullName },
       });
       if (error) throw error;
       userId = data.user!.id;
       action = "created";
     }
 
-    // Ensure admin role
     await admin.from("user_roles").upsert(
       { user_id: userId, role: "admin" },
       { onConflict: "user_id,role" }
     );
-    // Ensure profile
     await admin.from("profiles").upsert(
-      { user_id: userId, full_name: "Admin KLS" },
+      { user_id: userId, full_name: fullName, name: fullName, email, phone: phoneDisplay, is_validated: true },
+      { onConflict: "user_id" }
+    );
+    await admin.from("protected_admins").upsert(
+      { user_id: userId, email },
       { onConflict: "user_id" }
     );
 
-    return new Response(JSON.stringify({ ok: true, action, id: userId, email }), {
+    return new Response(JSON.stringify({ ok: true, action, id: userId, email, phone: phoneDisplay }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   } catch (e) {

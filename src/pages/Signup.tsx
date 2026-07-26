@@ -70,6 +70,8 @@ const profileSchema = z
     fullName: z.string().trim().min(2, "Nom complet trop court").max(80, "Nom trop long"),
     country: z.string().min(1, "Pays requis"),
     birthDate: z.string().min(1, "Date de naissance requise"),
+    gender: z.enum(["male", "female", "other"], { message: "Sexe requis" }),
+    profilePhone: z.string().trim().regex(/^\+?\d[\d\s().-]{6,20}$/, "Numéro invalide"),
   })
   .refine(
     (v) => {
@@ -122,6 +124,8 @@ const Signup = () => {
     country: "",
     region: "",
     birthDate: "",
+    gender: "" as "" | "male" | "female" | "other",
+    profilePhone: "",
     profilePhoto: null as File | null,
     profilePhotoPreview: null as string | null,
     notRobot: false,
@@ -215,6 +219,8 @@ const Signup = () => {
           fullName: formData.fullName,
           country: formData.country,
           birthDate: formData.birthDate,
+          gender: formData.gender || undefined,
+          profilePhone: formData.profilePhone || (signupMethod === "phone" ? formData.phone : ""),
         });
         return r.success ? null : r.error.issues[0]?.message ?? "Données invalides";
       }
@@ -334,6 +340,8 @@ const Signup = () => {
           region: formData.region || null,
           birth_date: formData.birthDate,
           avatar_url: avatarUrl,
+          gender: formData.gender || null,
+          phone: normalizePhone(formData.profilePhone || formData.phone) || null,
         })
         .eq("user_id", userId);
       if (profileErr) throw new Error("Impossible d'enregistrer le profil : " + profileErr.message);
@@ -666,6 +674,52 @@ const Signup = () => {
                         />
                       </div>
                     </div>
+
+
+                    <div className="space-y-1.5">
+                      <Label className={labelClass}>
+                        <User className="w-3 h-3" /> Sexe
+                      </Label>
+                      <div className="grid grid-cols-3 gap-2">
+                        {([
+                          { v: "male", l: "Homme" },
+                          { v: "female", l: "Femme" },
+                          { v: "other", l: "Autre" },
+                        ] as const).map((g) => (
+                          <button
+                            key={g.v}
+                            type="button"
+                            onClick={() => updateField("gender", g.v)}
+                            className={`h-11 rounded-2xl border text-[12px] font-bold transition ${
+                              formData.gender === g.v
+                                ? "border-[hsl(var(--gold)/0.7)] bg-[hsl(var(--gold)/0.12)] text-[hsl(var(--gold))]"
+                                : "border-border/60 bg-foreground/[0.04] text-foreground/70 hover:border-[hsl(var(--gold)/0.4)]"
+                            }`}
+                          >
+                            {g.l}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    <div className="space-y-1.5">
+                      <Label className={labelClass}>
+                        <Phone className="w-3 h-3" /> Téléphone
+                      </Label>
+                      <div className="relative">
+                        <Phone className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-foreground/40 pointer-events-none" />
+                        <Input
+                          type="tel"
+                          autoComplete="tel"
+                          placeholder="+261 34 00 000 00"
+                          value={formData.profilePhone || (signupMethod === "phone" ? formData.phone : "")}
+                          onChange={(e) => updateField("profilePhone", e.target.value)}
+                          className={inputClass}
+                        />
+                      </div>
+                    </div>
+
+
 
                     <div className="space-y-1.5">
                       <Label className={labelClass}>

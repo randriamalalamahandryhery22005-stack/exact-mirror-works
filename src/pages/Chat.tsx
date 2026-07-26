@@ -17,6 +17,7 @@ import {
   ArrowLeft,
   Send,
   ImagePlus,
+  Paperclip,
   X,
   Search,
   Reply,
@@ -28,10 +29,22 @@ import {
   Check,
   CheckCheck,
   Phone,
+  FileText,
+  Download,
+  Play,
 } from "lucide-react";
 
 const AUDIO_RX = /\.(webm|ogg|mp3|m4a|wav|aac)(\?|$)/i;
+const IMAGE_RX = /\.(png|jpe?g|gif|webp|bmp|svg|heic|heif|avif)(\?|$)/i;
+const VIDEO_RX = /\.(mp4|mov|webm|mkv|m4v|3gp|avi)(\?|$)/i;
 const isAudioPath = (p?: string | null) => !!p && AUDIO_RX.test(p);
+const isImagePath = (p?: string | null) => !!p && IMAGE_RX.test(p);
+const isVideoPath = (p?: string | null) => !!p && VIDEO_RX.test(p);
+const fileNameFromPath = (p: string) => {
+  const raw = p.split("/").pop() || p;
+  return raw.replace(/^\d+-[a-z0-9]+\./i, (m) => m.split(".").slice(1).join("."));
+};
+const MAX_FILE_MB = 50;
 
 type ChatRow = {
   id: string;
@@ -264,10 +277,10 @@ export default function Chat() {
 
   const handleImagePick = (f: File | null) => {
     if (!f) { setImageFile(null); setImagePreview(null); return; }
-    if (f.size > 5 * 1024 * 1024) { toast.error("Image trop volumineuse (max 5MB)"); return; }
-    if (!f.type.startsWith("image/")) { toast.error("Format d'image invalide"); return; }
+    if (f.size > MAX_FILE_MB * 1024 * 1024) { toast.error(`Fichier trop volumineux (max ${MAX_FILE_MB}MB)`); return; }
     setImageFile(f);
-    setImagePreview(URL.createObjectURL(f));
+    if (f.type.startsWith("image/")) setImagePreview(URL.createObjectURL(f));
+    else setImagePreview(null);
   };
 
   const send = async () => {
@@ -488,7 +501,7 @@ export default function Chat() {
                           {reply && (
                             <div className={`mb-1.5 px-2 py-1 rounded-lg text-[11px] border-l-2 ${mine ? "bg-white/10 border-white/40" : "bg-black/20 border-amber-400"}`}>
                               <div className="font-semibold opacity-80 truncate">
-                                {reply.user_id === user?.id ? "Vous" : displayName(replyAuthor)}
+                                {reply.user_id === user?.id ? "Vous" : displayName(replyAuthor ?? undefined)}
                               </div>
                               <div className="opacity-70 truncate">{reply.content || (reply.image_url ? "📷 Image" : "")}</div>
                             </div>
@@ -496,9 +509,25 @@ export default function Chat() {
                           {imgUrl && isAudioPath(m.image_url) && (
                             <VoiceMessagePlayer src={imgUrl} variant={mine ? "me" : "them"} cacheKey={m.id} />
                           )}
-                          {imgUrl && !isAudioPath(m.image_url) && (
+                          {imgUrl && isImagePath(m.image_url) && (
                             <a href={imgUrl} target="_blank" rel="noreferrer" className="block mb-1">
                               <img src={imgUrl} alt="pièce jointe" className="rounded-xl max-h-64 object-cover" />
+                            </a>
+                          )}
+                          {imgUrl && isVideoPath(m.image_url) && (
+                            <video src={imgUrl} controls playsInline className="rounded-xl max-h-64 mb-1 bg-black" />
+                          )}
+                          {imgUrl && !isAudioPath(m.image_url) && !isImagePath(m.image_url) && !isVideoPath(m.image_url) && (
+                            <a
+                              href={imgUrl}
+                              target="_blank"
+                              rel="noreferrer"
+                              download
+                              className={`flex items-center gap-2 mb-1 px-2.5 py-2 rounded-xl border ${mine ? "bg-white/15 border-white/25" : "bg-black/20 border-white/10"}`}
+                            >
+                              <FileText className="w-5 h-5 shrink-0 opacity-80" />
+                              <span className="flex-1 min-w-0 text-[12px] font-medium truncate">{fileNameFromPath(m.image_url!)}</span>
+                              <Download className="w-4 h-4 shrink-0 opacity-80" />
                             </a>
                           )}
                           {m.content && !isAudioPath(m.image_url) && <div className="whitespace-pre-wrap">{m.content}</div>}
@@ -600,20 +629,37 @@ export default function Chat() {
               </button>
             </div>
           )}
-          {imagePreview && (
-            <div className="relative inline-block">
-              <img src={imagePreview} alt="aperçu" className="max-h-24 rounded-xl border border-white/10" />
-              <button onClick={() => handleImagePick(null)} className="absolute -top-1.5 -right-1.5 w-6 h-6 rounded-full bg-slate-900 border border-white/20 flex items-center justify-center">
-                <X className="w-3.5 h-3.5" />
-              </button>
+          {imageFile && (
+            <div className="flex items-center gap-2">
+              {imagePreview ? (
+                <div className="relative inline-block">
+                  <img src={imagePreview} alt="aperçu" className="max-h-24 rounded-xl border border-white/10" />
+                  <button onClick={() => handleImagePick(null)} className="absolute -top-1.5 -right-1.5 w-6 h-6 rounded-full bg-slate-900 border border-white/20 flex items-center justify-center">
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              ) : (
+                <div className="relative inline-flex items-center gap-2 px-3 py-2 rounded-xl bg-white/5 border border-white/10 pr-8 max-w-full">
+                  {imageFile.type.startsWith("video/") ? <Play className="w-4 h-4 text-amber-300 shrink-0" /> : <FileText className="w-4 h-4 text-amber-300 shrink-0" />}
+                  <span className="text-xs text-slate-200 truncate max-w-[220px]">{imageFile.name}</span>
+                  <span className="text-[10px] text-slate-500">{(imageFile.size / (1024 * 1024)).toFixed(1)} MB</span>
+                  <button onClick={() => handleImagePick(null)} className="absolute -top-1.5 -right-1.5 w-6 h-6 rounded-full bg-slate-900 border border-white/20 flex items-center justify-center">
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              )}
             </div>
           )}
           <div className="flex items-end gap-2">
             {!voiceActive && (
               <>
-                <label className="w-10 h-10 shrink-0 rounded-2xl bg-white/5 hover:bg-white/10 border border-white/10 flex items-center justify-center cursor-pointer transition" title="Envoyer une image">
+                <label className="w-10 h-10 shrink-0 rounded-2xl bg-white/5 hover:bg-white/10 border border-white/10 flex items-center justify-center cursor-pointer transition" title="Envoyer une image ou une vidéo">
                   <ImagePlus className="w-4 h-4 text-amber-300" />
-                  <input type="file" accept="image/*" className="hidden" onChange={(e) => handleImagePick(e.target.files?.[0] || null)} />
+                  <input type="file" accept="image/*,video/*" className="hidden" onChange={(e) => { handleImagePick(e.target.files?.[0] || null); e.currentTarget.value = ""; }} />
+                </label>
+                <label className="w-10 h-10 shrink-0 rounded-2xl bg-white/5 hover:bg-white/10 border border-white/10 flex items-center justify-center cursor-pointer transition" title="Envoyer un fichier">
+                  <Paperclip className="w-4 h-4 text-amber-300" />
+                  <input type="file" className="hidden" onChange={(e) => { handleImagePick(e.target.files?.[0] || null); e.currentTarget.value = ""; }} />
                 </label>
                 <button
                   onClick={() => user && setCallOpen(true)}

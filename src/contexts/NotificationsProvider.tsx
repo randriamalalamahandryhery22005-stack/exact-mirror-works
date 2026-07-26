@@ -6,6 +6,8 @@ import { useCall } from "@/contexts/CallContext";
 import { toast } from "sonner";
 import { MessageCircle, Mic, Bell, PhoneMissed } from "lucide-react";
 import IncomingCallOverlay, { type IncomingCall } from "@/components/IncomingCallOverlay";
+import { playNotificationSound, startRingtone } from "@/lib/notificationSound";
+
 
 
 const AUDIO_RX = /\.(webm|ogg|mp3|m4a|wav|aac)(\?|$)/i;
@@ -58,33 +60,24 @@ export default function NotificationsProvider({ children }: { children: React.Re
   }, []);
 
   const play = useCallback((kind: keyof typeof SOUNDS) => {
-    const now = Date.now();
-    if ((lastPlayRef.current[kind] || 0) + 1400 > now) return;
-    lastPlayRef.current[kind] = now;
-    try {
-      const a = new Audio(SOUNDS[kind]);
-      a.volume = kind === "ring" ? 0.7 : 0.55;
-      a.play().catch(() => {});
-    } catch { /* ignore */ }
+    const map = { text: "message", voice: "voice", call: "call", ring: "ring" } as const;
+    playNotificationSound(map[kind]);
   }, []);
 
+  const stopRingRef = useRef<(() => void) | null>(null);
+
   const startRing = useCallback(() => {
-    try {
-      if (ringRef.current) { ringRef.current.pause(); ringRef.current.currentTime = 0; }
-      const a = new Audio(SOUNDS.ring);
-      a.loop = true;
-      a.volume = 0.7;
-      ringRef.current = a;
-      a.play().catch(() => {});
-      if (navigator.vibrate) navigator.vibrate([300, 200, 300, 200, 300]);
-    } catch { /* ignore */ }
+    stopRingRef.current?.();
+    stopRingRef.current = startRingtone();
   }, []);
 
   const stopRing = useCallback(() => {
-    try { ringRef.current?.pause(); } catch {}
+    stopRingRef.current?.();
+    stopRingRef.current = null;
+    try { ringRef.current?.pause(); } catch { /* noop */ }
     ringRef.current = null;
-    if (navigator.vibrate) navigator.vibrate(0);
   }, []);
+
 
   const acceptCall = useCallback((_c: IncomingCall) => {
     stopRing();

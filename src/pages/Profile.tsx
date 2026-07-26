@@ -8,6 +8,8 @@ import { Label } from "@/components/ui/label";
 import { ArrowLeft, Camera, Check, KeyRound, Mail, Phone, Globe, User as UserIcon, Shield, Loader2, Calendar, MapPin, Sparkles } from "lucide-react";
 import { toast } from "sonner";
 import { COUNTRIES } from "@/lib/countries";
+import { processAvatar } from "@/lib/avatarImage";
+
 
 type EditField = "email" | "phone" | "password" | null;
 
@@ -98,40 +100,31 @@ const Profile = () => {
       setValidatingFace(false);
     }
 
-    // Upload
+    // Traitement + persistance (image optimisée haute qualité, toujours affichable)
     setUploading(true);
     try {
-      const ext = (file.name.split(".").pop() || "png").toLowerCase();
-      const path = `${user.id}/${Date.now()}.${ext}`;
-      const { error: upErr } = await supabase.storage.from("avatars").upload(path, file, { upsert: true, contentType: file.type || undefined });
-      let publicUrl: string;
-      if (upErr) {
-        const { error: fbErr } = await supabase.storage.from("gen-store").upload(`avatars/${path}`, file, { upsert: true });
-        if (fbErr) throw fbErr;
-        publicUrl = supabase.storage.from("gen-store").getPublicUrl(`avatars/${path}`).data.publicUrl;
-      } else {
-        publicUrl = supabase.storage.from("avatars").getPublicUrl(path).data.publicUrl;
-      }
-      setAvatarUrl(publicUrl);
-      setAvatarPreview(publicUrl);
-      // Persist immediately so the avatar shows everywhere without needing an extra save click
+      const optimized = await processAvatar(file, { size: 512, quality: 0.9 });
+      setAvatarUrl(optimized);
+      setAvatarPreview(optimized);
       const { error: persistErr } = await supabase
         .from("profiles")
-        .update({ avatar_url: publicUrl })
+        .update({ avatar_url: optimized })
         .eq("user_id", user.id);
       if (persistErr) {
-        toast.error("Photo enregistrée mais non sauvegardée : " + persistErr.message);
+        toast.error("Photo non sauvegardée : " + persistErr.message);
+        setAvatarPreview(avatarUrl);
       } else {
         await refreshProfile();
         toast.success("Photo de profil mise à jour");
       }
     } catch (err: any) {
-      toast.error(err.message || "Erreur upload");
+      toast.error(err.message || "Erreur lors du traitement de l'image");
       setAvatarPreview(avatarUrl);
     } finally {
       setUploading(false);
     }
   };
+
 
   const saveProfileFields = async () => {
     if (!user) return;

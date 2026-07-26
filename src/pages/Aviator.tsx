@@ -63,7 +63,7 @@ const Aviator = () => {
         <div className="flex-1 flex flex-col items-center justify-center gap-6 px-5 py-6" style={{ animation: "fade-up 0.5s cubic-bezier(0.16, 1, 0.3, 1) forwards" }}>
           <div className="text-center space-y-1">
             <p className="text-[11px] text-muted-foreground font-semibold uppercase tracking-[0.2em]">Modes disponibles</p>
-            <p className="text-xs text-muted-foreground/70">Choisissez Basique ou Premium</p>
+            <p className="text-xs text-muted-foreground/70">Choisissez votre expérience</p>
           </div>
 
           {/* Analyse du tour actuel — dédiée */}
@@ -83,14 +83,14 @@ const Aviator = () => {
 
 
           <div className="w-full max-w-md grid grid-cols-2 gap-3">
-            {/* Basique */}
+            {/* Accès libre */}
             <button
               onClick={handleBasicClick}
               className="flex flex-col items-center gap-3 p-5 rounded-3xl bg-card border border-border/50 hover:border-primary/40 hover:shadow-2xl transition-all duration-300 active:scale-[0.98]"
             >
-              <img src={basicLogo} alt="Basique" className="w-20 h-20 object-contain drop-shadow-2xl" loading="lazy" />
+              <img src={basicLogo} alt="Prédictions" className="w-20 h-20 object-contain drop-shadow-2xl" loading="lazy" />
               <div className="text-center space-y-1">
-                <p className="font-black text-sm">Basique</p>
+                <p className="font-black text-sm">Prédictions</p>
                 <p className="text-[10px] text-muted-foreground leading-snug">Prédictions standard</p>
               </div>
               <div className="flex items-center gap-1 text-[9px] font-semibold mt-1 px-2 py-1 rounded-full bg-secondary/80">
@@ -99,17 +99,17 @@ const Aviator = () => {
               </div>
             </button>
 
-            {/* Premium */}
+            {/* Jeux */}
             <button
               onClick={() => navigate("/premium-select")}
               className="relative flex flex-col items-center gap-3 p-5 rounded-3xl bg-gradient-to-b from-primary/10 via-card to-card border border-primary/40 hover:border-primary/70 hover:shadow-2xl hover:shadow-primary/20 transition-all duration-300 active:scale-[0.98]"
             >
               <span className="absolute -top-2 left-1/2 -translate-x-1/2 text-[8px] px-2 py-0.5 rounded-full gold-gradient text-primary-foreground font-bold flex items-center gap-0.5 shadow-lg">
-                <Crown className="w-2.5 h-2.5" /> Premium
+                <Crown className="w-2.5 h-2.5" /> Jeux
               </span>
-              <img src={premiumLogo} alt="Premium" className="w-20 h-20 object-contain drop-shadow-2xl" loading="lazy" />
+              <img src={premiumLogo} alt="Jeux" className="w-20 h-20 object-contain drop-shadow-2xl" loading="lazy" />
               <div className="text-center space-y-1">
-                <p className="font-black text-sm gold-text">Premium</p>
+                <p className="font-black text-sm gold-text">Jeux</p>
                 <p className="text-[10px] text-muted-foreground leading-snug">Aviator · CosmoX · JetX · Virtuel</p>
               </div>
               <div className="flex items-center gap-1 text-[9px] font-semibold mt-1 px-2 py-1 rounded-full bg-primary/15 text-primary">
@@ -119,6 +119,7 @@ const Aviator = () => {
 
           </div>
         </div>
+
       ) : (
         <div className="flex-1 flex flex-col items-center justify-center gap-5 px-5" style={{ animation: "fade-up 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards" }}>
           <div className="w-16 h-16 rounded-2xl bg-secondary flex items-center justify-center">
@@ -126,7 +127,7 @@ const Aviator = () => {
           </div>
           <div className="text-center">
             <h2 className="font-bold">Code d'accès requis</h2>
-            <p className="text-xs text-muted-foreground mt-1">Entrez le code pour accéder au mode Basique</p>
+            <p className="text-xs text-muted-foreground mt-1">Entrez le code pour accéder aux prédictions</p>
           </div>
           <div className="w-full max-w-xs space-y-3">
             <Input

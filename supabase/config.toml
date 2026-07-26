@@ -1,1 +1,4 @@
-project_id = "tdgzyusejzheybthtznj"
+project_id = "qxpvzdjtlkhbyhucnqty"
+
+[functions.search-accounts]
+verify_jwt = false
