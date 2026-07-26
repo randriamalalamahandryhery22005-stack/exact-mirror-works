@@ -3,6 +3,15 @@ import { User, Session } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
 import { usePresence } from "@/hooks/usePresence";
 
+/** Appel d'une fonction sécurisée côté base (hors types générés). */
+const rpc = (name: string, args?: Record<string, unknown>) =>
+  (supabase.rpc as unknown as (n: string, a?: Record<string, unknown>) => Promise<{ data: unknown; error: unknown }>)(
+    name,
+    args,
+  );
+
+
+
 interface UserProfile {
   id: string;
   full_name: string;
@@ -76,20 +85,36 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     return admin;
   };
 
+  // Le code d'accès application est un secret : il n'est jamais téléchargé
+  // côté client. On interroge uniquement « un code est-il exigé ? » puis on
+  // fait vérifier la saisie par le serveur (fonction sécurisée).
   const checkAccessCode = async () => {
-    const { data } = await supabase
+    const { data, error } = await rpc("app_access_code_required");
+    if (!error) {
+      const required = data === true;
+      setAccessCodeRequired(required);
+      return required ? "required" : "";
+    }
+    // Repli tant que la fonction sécurisée n'est pas déployée.
+    const { data: row } = await supabase
       .from("activation_codes")
       .select("code_value")
       .eq("code_name", "app_access")
       .maybeSingle();
-    const code = data?.code_value || "";
+    const code = row?.code_value || "";
     setCurrentAccessCode(code);
     setAccessCodeRequired(code.length > 0);
     return code;
   };
 
   const verifyAccessCode = async (code: string): Promise<boolean> => {
-    if (code === currentAccessCode) {
+    const { data, error } = await rpc("verify_app_access_code", { _code: code });
+    if (!error) {
+      const ok = data === true;
+      if (ok) setAccessCodeVerified(true);
+      return ok;
+    }
+    if (currentAccessCode && code === currentAccessCode) {
       setAccessCodeVerified(true);
       return true;
     }
