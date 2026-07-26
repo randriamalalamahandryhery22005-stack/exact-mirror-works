@@ -56,6 +56,7 @@ import {
   applyStoredVideoBackground,
   applyBackgroundVideo,
 } from "@/lib/videoBackground";
+import { AI_WALLPAPERS } from "@/lib/aiVideoWallpapers";
 
 const WHATSAPP_LINK = "https://wa.me/261379594257";
 const EMAIL_LINK = "mailto:jeuxdhazardmada@gmail.com";
