@@ -683,6 +683,63 @@ function ThemePanel() {
           <Button size="sm" variant="secondary" className="h-9" onClick={applyRemoteVideo}>Appliquer</Button>
         </div>
 
+        {/* Fond d'écran par IA */}
+        <div className="mt-4 rounded-xl border border-amber-400/25 bg-amber-400/5 p-3">
+          <div className="flex items-center gap-2 mb-2">
+            <Sparkles className="w-4 h-4 text-amber-300" />
+            <h4 className="text-xs font-bold">Fond d'écran par IA</h4>
+          </div>
+          <p className="text-[11px] text-slate-400 mb-2">
+            Décrivez l'ambiance : l'IA génère et applique la vidéo la plus adaptée.
+            Vous pouvez aussi choisir directement dans la galerie.
+          </p>
+          <div className="flex gap-2">
+            <input
+              value={aiVideoPrompt}
+              onChange={(e) => setAiVideoPrompt(e.target.value)}
+              placeholder="ex. ambiance nocturne néon, luxueuse et calme"
+              className="flex-1 h-9 rounded-lg bg-black/30 border border-white/10 px-3 text-xs outline-none focus:border-amber-400/50"
+              onKeyDown={(e) => { if (e.key === "Enter") void generateAiVideo(); }}
+            />
+            <Button
+              size="sm"
+              className="h-9 shrink-0"
+              disabled={aiVideoBusy}
+              onClick={() => void generateAiVideo()}
+            >
+              {aiVideoBusy ? <Loader2 className="w-4 h-4 animate-spin" /> : "Générer"}
+            </Button>
+          </div>
+          <div className="grid grid-cols-3 gap-2 mt-3">
+            {AI_WALLPAPERS.map((w) => {
+              const active = p.bgVideoUrl === w.url;
+              return (
+                <button
+                  key={w.id}
+                  type="button"
+                  onClick={() => { applyAiWallpaper(w); toast.success(`Fond vidéo « ${w.label} » appliqué`); }}
+                  className={`relative rounded-lg overflow-hidden border text-left transition-colors ${
+                    active ? "border-amber-400" : "border-white/10 hover:border-amber-400/50"
+                  }`}
+                >
+                  <video
+                    src={w.url}
+                    muted
+                    loop
+                    playsInline
+                    autoPlay
+                    preload="metadata"
+                    className="w-full h-20 object-cover"
+                  />
+                  <span className="block px-1.5 py-1 text-[10px] text-slate-200 truncate">{w.label}</span>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+
+
         {p.bgVideoSource && (
           <div className="mt-3 space-y-3">
             <div className="flex items-center justify-between text-[11px] text-slate-300">
