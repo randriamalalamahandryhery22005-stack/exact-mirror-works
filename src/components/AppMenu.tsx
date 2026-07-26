@@ -559,6 +559,41 @@ function ThemePanel() {
   /* ---- Fond d'écran vidéo ---- */
   const [videoBusy, setVideoBusy] = useState(false);
   const [remoteVideo, setRemoteVideo] = useState("");
+  const [aiVideoPrompt, setAiVideoPrompt] = useState("");
+  const [aiVideoBusy, setAiVideoBusy] = useState(false);
+
+  /** Applique un fond vidéo IA (URL CDN) et le mémorise. */
+  const applyAiWallpaper = (w: { id: string; label: string; url: string }) => {
+    writePersonalization({
+      bgVideoSource: "remote",
+      bgVideoUrl: w.url,
+      bgVideoName: `IA · ${w.label}`,
+    });
+    applyBackgroundVideo(w.url, videoOpts());
+  };
+
+  const generateAiVideo = async () => {
+    const prompt = aiVideoPrompt.trim();
+    if (!prompt) { toast.error("Décrivez l'ambiance souhaitée"); return; }
+    setAiVideoBusy(true);
+    try {
+      const res = await fetch("/api/ai-video", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ prompt }),
+      });
+      if (!res.ok) throw new Error(await res.text());
+      const { wallpaper, reason } = (await res.json()) as {
+        wallpaper: { id: string; label: string; url: string };
+        reason?: string;
+      };
+      applyAiWallpaper(wallpaper);
+      toast.success(`Fond vidéo IA appliqué : ${wallpaper.label}`, { description: reason });
+    } catch (e: any) {
+      toast.error("Échec de la génération", { description: e?.message?.slice(0, 120) });
+    } finally { setAiVideoBusy(false); }
+  };
+
 
   const pickVideo = async (file?: File | null) => {
     if (!file) return;

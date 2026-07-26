@@ -33,6 +33,7 @@ import { Route as AviatorIndexRouteImport } from './routes/aviator.index'
 import { Route as CustomSlugRouteImport } from './routes/custom.$slug'
 import { Route as AviatorProRouteImport } from './routes/aviator.pro'
 import { Route as AviatorBasicRouteImport } from './routes/aviator.basic'
+import { Route as ApiAiVideoRouteImport } from './routes/api/ai-video'
 import { Route as ApiAiPaletteRouteImport } from './routes/api/ai-palette'
 import { Route as ApiAiBackgroundRouteImport } from './routes/api/ai-background'
 import { Route as AnalyseGameRouteImport } from './routes/analyse.$game'
@@ -157,6 +158,11 @@ const AviatorBasicRoute = AviatorBasicRouteImport.update({
   path: '/aviator/basic',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiAiVideoRoute = ApiAiVideoRouteImport.update({
+  id: '/api/ai-video',
+  path: '/api/ai-video',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiAiPaletteRoute = ApiAiPaletteRouteImport.update({
   id: '/api/ai-palette',
   path: '/api/ai-palette',
@@ -196,6 +202,7 @@ export interface FileRoutesByFullPath {
   '/analyse/$game': typeof AnalyseGameRoute
   '/api/ai-background': typeof ApiAiBackgroundRoute
   '/api/ai-palette': typeof ApiAiPaletteRoute
+  '/api/ai-video': typeof ApiAiVideoRoute
   '/aviator/basic': typeof AviatorBasicRoute
   '/aviator/pro': typeof AviatorProRoute
   '/custom/$slug': typeof CustomSlugRoute
@@ -225,6 +232,7 @@ export interface FileRoutesByTo {
   '/analyse/$game': typeof AnalyseGameRoute
   '/api/ai-background': typeof ApiAiBackgroundRoute
   '/api/ai-palette': typeof ApiAiPaletteRoute
+  '/api/ai-video': typeof ApiAiVideoRoute
   '/aviator/basic': typeof AviatorBasicRoute
   '/aviator/pro': typeof AviatorProRoute
   '/custom/$slug': typeof CustomSlugRoute
@@ -255,6 +263,7 @@ export interface FileRoutesById {
   '/analyse/$game': typeof AnalyseGameRoute
   '/api/ai-background': typeof ApiAiBackgroundRoute
   '/api/ai-palette': typeof ApiAiPaletteRoute
+  '/api/ai-video': typeof ApiAiVideoRoute
   '/aviator/basic': typeof AviatorBasicRoute
   '/aviator/pro': typeof AviatorProRoute
   '/custom/$slug': typeof CustomSlugRoute
@@ -286,6 +295,7 @@ export interface FileRouteTypes {
     | '/analyse/$game'
     | '/api/ai-background'
     | '/api/ai-palette'
+    | '/api/ai-video'
     | '/aviator/basic'
     | '/aviator/pro'
     | '/custom/$slug'
@@ -315,6 +325,7 @@ export interface FileRouteTypes {
     | '/analyse/$game'
     | '/api/ai-background'
     | '/api/ai-palette'
+    | '/api/ai-video'
     | '/aviator/basic'
     | '/aviator/pro'
     | '/custom/$slug'
@@ -344,6 +355,7 @@ export interface FileRouteTypes {
     | '/analyse/$game'
     | '/api/ai-background'
     | '/api/ai-palette'
+    | '/api/ai-video'
     | '/aviator/basic'
     | '/aviator/pro'
     | '/custom/$slug'
@@ -374,6 +386,7 @@ export interface RootRouteChildren {
   AnalyseGameRoute: typeof AnalyseGameRoute
   ApiAiBackgroundRoute: typeof ApiAiBackgroundRoute
   ApiAiPaletteRoute: typeof ApiAiPaletteRoute
+  ApiAiVideoRoute: typeof ApiAiVideoRoute
   AviatorBasicRoute: typeof AviatorBasicRoute
   AviatorProRoute: typeof AviatorProRoute
   CustomSlugRoute: typeof CustomSlugRoute
@@ -551,6 +564,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AviatorBasicRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/ai-video': {
+      id: '/api/ai-video'
+      path: '/api/ai-video'
+      fullPath: '/api/ai-video'
+      preLoaderRoute: typeof ApiAiVideoRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/ai-palette': {
       id: '/api/ai-palette'
       path: '/api/ai-palette'
@@ -598,6 +618,7 @@ const rootRouteChildren: RootRouteChildren = {
   AnalyseGameRoute: AnalyseGameRoute,
   ApiAiBackgroundRoute: ApiAiBackgroundRoute,
   ApiAiPaletteRoute: ApiAiPaletteRoute,
+  ApiAiVideoRoute: ApiAiVideoRoute,
   AviatorBasicRoute: AviatorBasicRoute,
   AviatorProRoute: AviatorProRoute,
   CustomSlugRoute: CustomSlugRoute,
