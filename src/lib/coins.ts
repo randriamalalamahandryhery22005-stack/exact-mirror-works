@@ -4,16 +4,28 @@ import { supabase } from "@/integrations/supabase/client";
 const COINS_PER_HOUR = 1;
 const LIFETIME_COINS = 1_000_000;
 
+/**
+ * L'attribution des jetons est calculée côté serveur (fonction sécurisée) :
+ * elle exige un abonnement réellement validé par un administrateur, le client
+ * ne choisit ni le montant ni la durée. Repli sur l'ancien chemin tant que la
+ * fonction sécurisée n'est pas déployée.
+ */
 export async function grantSubscriptionCoins(
   userId: string,
   opts: { days: number; lifetime?: boolean; expiresAt?: string | null },
 ) {
+  const { error: rpcError } = await (
+    supabase.rpc as unknown as (n: string) => Promise<{ error: unknown }>
+  )("grant_subscription_coins");
+  if (!rpcError) return;
+
   const coins = opts.lifetime ? LIFETIME_COINS : Math.max(1, opts.days * 24 * COINS_PER_HOUR);
   const ratePerHour = opts.lifetime ? 0 : COINS_PER_HOUR;
   const startedAt = new Date().toISOString();
   const expires = opts.lifetime
     ? null
     : opts.expiresAt || new Date(Date.now() + opts.days * 24 * 3600 * 1000).toISOString();
+
 
   const { data: existing } = await supabase
     .from("user_coins")
