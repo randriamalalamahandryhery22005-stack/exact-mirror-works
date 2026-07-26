@@ -3,6 +3,15 @@ import { User, Session } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
 import { usePresence } from "@/hooks/usePresence";
 
+/** Appel d'une fonction sécurisée côté base (hors types générés). */
+const rpc = (name: string, args?: Record<string, unknown>) =>
+  (supabase.rpc as unknown as (n: string, a?: Record<string, unknown>) => Promise<{ data: unknown; error: unknown }>)(
+    name,
+    args,
+  );
+
+
+
 interface UserProfile {
   id: string;
   full_name: string;
