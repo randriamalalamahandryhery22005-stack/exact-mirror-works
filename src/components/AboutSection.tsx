@@ -12,9 +12,16 @@ const contactItems = [
     icon: Facebook, label: "Facebook", value: "Page officielle",
     link: "https://facebook.com/mahandry.hery.randriamalala",
   },
-  { icon: Phone, label: "Téléphone / WhatsApp", value: "+261 33 67 561 85" },
-  { icon: Mail, label: "Email", value: "jeuxdhazardmada@gmail.com" },
+  {
+    icon: Phone, label: "WhatsApp", value: "Ouvrir la conversation",
+    link: "https://wa.me/261379594257",
+  },
+  {
+    icon: Mail, label: "Email", value: "Écrire au support",
+    link: "mailto:jeuxdhazardmada@gmail.com",
+  },
 ];
+
 
 const features = [
   { icon: Gamepad2, label: "Prédictions multi-jeux", desc: "Aviator, JetX, CosmoX, Virtuel, Penalty…" },

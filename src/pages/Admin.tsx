@@ -171,7 +171,10 @@ const Admin = () => {
     if (isNaN(days) || days < 1) { toast.error("Durée invalide"); return; }
     const base = currentExpires && new Date(currentExpires) > new Date() ? new Date(currentExpires) : new Date();
     const newExpires = new Date(base.getTime() + days * 86400000).toISOString();
-    const { error } = await supabase.from("game_access").update({ expires_at: newExpires, is_active: true }).eq("id", accessId);
+    const { error } = await supabase
+      .from("game_access")
+      .update({ expires_at: newExpires, is_active: true, granted_by: user?.id } as any)
+      .eq("id", accessId);
     if (error) { toast.error("Erreur: " + error.message); return; }
     toast.success(`+${days} jours ajoutés`); fetchData();
   };
@@ -197,7 +200,7 @@ const Admin = () => {
       supabase.from("reward_requests").select("*").order("created_at", { ascending: false }),
       supabase.from("chat_messages").select("*").order("created_at", { ascending: false }).limit(100),
     ]);
-    if (p.data) setProfiles(p.data);
+    if (p.data) setProfiles(p.data as Profile[]);
     if (c.data) setCodes(c.data);
     if (r.data) setResets(r.data);
     if (a.data) setGameAccess(a.data as GameAccess[]);

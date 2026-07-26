@@ -6,6 +6,7 @@ import { Label } from "@/components/ui/label";
 import { Upload, Trash2, Image as ImageIcon, Music, Video, FileArchive, FileText, Smartphone, FolderOpen, Loader2, Megaphone, Link as LinkIcon } from "lucide-react";
 import { toast } from "sonner";
 import { useAuth } from "@/contexts/AuthContext";
+import { GEN_STORE_BUCKET } from "@/lib/genStore";
 
 const CATEGORIES = [
   { id: "image", label: "Image", icon: ImageIcon, accept: "image/*", needsFile: true },
@@ -39,7 +40,7 @@ const formatBytes = (b: number) => {
   return `${(b / 1024 / 1024 / 1024).toFixed(2)} GB`;
 };
 
-const AdminGenStorePanel = () => {
+const AdminGenStorePanel = ({ onPublished }: { onPublished?: () => void }) => {
   const { user } = useAuth();
   const [items, setItems] = useState<Item[]>([]);
   const [title, setTitle] = useState("");
@@ -50,19 +51,22 @@ const AdminGenStorePanel = () => {
   const [uploading, setUploading] = useState(false);
 
   const load = async () => {
+    if (!user) return setItems([]);
     const { data } = await supabase
       .from("gen_store_items")
       .select("*")
+      .eq("created_by", user.id)
       .order("created_at", { ascending: false });
     setItems((data as any) || []);
   };
 
   useEffect(() => {
     load();
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.id]);
 
   const handleUpload = async () => {
-    if (!user) return;
+    if (!user) return toast.error("Connectez-vous pour publier");
     const cat = CATEGORIES.find((c) => c.id === category)!;
     if (!title.trim()) return toast.error("Titre obligatoire");
     if (!description.trim()) return toast.error("Description obligatoire");
@@ -71,25 +75,27 @@ const AdminGenStorePanel = () => {
 
     setUploading(true);
     try {
-      let path = "";
+      let path: string | null = null;
       let fileUrl: string | null = null;
-      let fileName = "";
+      let fileName: string | null = null;
       let fileSize = 0;
-      let mime = "";
+      let mime: string | null = null;
       if (cat.needsFile && file) {
         const ext = file.name.split(".").pop() || "bin";
         path = `${user.id}/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
         const { error: upErr } = await supabase.storage
-          .from("gen-store")
-          .upload(path, file, { contentType: file.type, cacheControl: "3600" });
+          .from(GEN_STORE_BUCKET)
+          .upload(path, file, {
+            contentType: file.type || "application/octet-stream",
+            cacheControl: "3600",
+            upsert: false,
+          });
         if (upErr) throw upErr;
-        const { data: signed } = await supabase.storage
-          .from("gen-store")
-          .createSignedUrl(path, 60 * 60 * 24 * 365);
-        fileUrl = signed?.signedUrl || null;
+        const { data: pub } = supabase.storage.from(GEN_STORE_BUCKET).getPublicUrl(path);
+        fileUrl = pub?.publicUrl || null;
         fileName = file.name;
         fileSize = file.size;
-        mime = file.type;
+        mime = file.type || null;
       }
 
       const { error: insErr } = await supabase.from("gen_store_items").insert({
@@ -99,9 +105,9 @@ const AdminGenStorePanel = () => {
         post_type: category === "annonce" ? "annonce" : category === "link" ? "link" : "file",
         body: !cat.needsFile ? description.trim() : null,
         link_url: category === "link" ? linkUrl.trim() : null,
-        file_path: path,
+        file_path: path ?? "",
         file_url: fileUrl,
-        file_name: fileName,
+        file_name: fileName ?? "",
         file_size: fileSize,
         mime_type: mime,
         created_by: user.id,
@@ -115,8 +121,14 @@ const AdminGenStorePanel = () => {
       setFile(null);
       setLinkUrl("");
       load();
+      onPublished?.();
     } catch (err: any) {
-      toast.error(err.message || "Erreur lors de la publication");
+      const msg: string = err?.message || "Erreur lors de la publication";
+      toast.error(
+        /bucket not found/i.test(msg)
+          ? "Espace de stockage « gen-store » introuvable — créez-le dans Supabase (Storage)."
+          : msg,
+      );
     } finally {
       setUploading(false);
     }
@@ -125,11 +137,13 @@ const AdminGenStorePanel = () => {
   const handleDelete = async (item: Item) => {
     if (!confirm(`Supprimer "${item.title}" ?`)) return;
     if (item.file_path) {
-      await supabase.storage.from("gen-store").remove([item.file_path]);
+      await supabase.storage.from(GEN_STORE_BUCKET).remove([item.file_path]);
     }
-    await supabase.from("gen_store_items").delete().eq("id", item.id);
+    const { error } = await supabase.from("gen_store_items").delete().eq("id", item.id);
+    if (error) return toast.error(error.message);
     toast.success("Supprimé");
     load();
+    onPublished?.();
   };
 
   const selectedCat = CATEGORIES.find((c) => c.id === category)!;
@@ -214,14 +228,14 @@ const AdminGenStorePanel = () => {
 
       <div className="space-y-2">
         <h3 className="text-xs uppercase tracking-wider text-muted-foreground font-bold">
-          Publications ({items.length})
+          Mes publications ({items.length})
         </h3>
         {items.length === 0 && (
-          <p className="text-sm text-muted-foreground text-center py-6">Aucune publication.</p>
+          <p className="text-sm text-muted-foreground text-center py-6">Aucune publication pour l'instant.</p>
         )}
         <ul className="space-y-2">
           {items.map((it) => {
-            const cat = CATEGORIES.find((c) => c.id === it.category) || CATEGORIES[6];
+            const cat = CATEGORIES.find((c) => c.id === it.category) || CATEGORIES[CATEGORIES.length - 1];
             const Icon = cat.icon;
             return (
               <li
@@ -234,7 +248,9 @@ const AdminGenStorePanel = () => {
                 <div className="flex-1 min-w-0">
                   <p className="font-semibold text-sm truncate">{it.title}</p>
                   <p className="text-[10px] text-muted-foreground truncate">
-                    {formatBytes(Number(it.file_size))} · {it.download_count} téléch.
+                    {it.file_path
+                      ? `${formatBytes(Number(it.file_size))} · ${it.download_count} téléch.`
+                      : cat.label}
                   </p>
                 </div>
                 <button

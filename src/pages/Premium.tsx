@@ -1,14 +1,13 @@
 import { useEffect, useState } from "react";
 import { Link, useNavigate, useLocation } from "react-router-dom";
 import {
-  Crown, Check, X, Sparkles, Shield, ArrowLeft, ArrowRight, Gem, Settings2, Minus, Plus,
+  Crown, Check, X, Sparkles, Shield, ArrowLeft, ArrowRight, Gem,
   LayoutDashboard, CreditCard, History, LifeBuoy,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { useAuth } from "@/contexts/AuthContext";
-import SubscriptionFlow from "@/components/SubscriptionFlow";
+import SubscriptionWizard from "@/components/SubscriptionWizard";
 import { usePremiumAccess } from "@/lib/premiumAccess";
 import PremiumDashboard from "@/components/premium/PremiumDashboard";
 import PremiumHistory from "@/components/premium/PremiumHistory";
@@ -35,11 +34,16 @@ interface Plan {
   lifetime?: boolean;
 }
 
+const DAILY_RATE = 30000 / 31; // Ar / jour
+const priceFor = (d: number) => Math.round(d * DAILY_RATE);
+
+export const LIFETIME_PRICE = 45000;
+
 const PLANS: Plan[] = [
-  { id: "premium-global", days: 7,  price: Math.round(7  * (30000 / 31)), label: "Découverte", tagline: "7 jours" },
-  { id: "premium-global", days: 15, price: Math.round(15 * (30000 / 31)), label: "Standard",   tagline: "15 jours", popular: true },
-  { id: "premium-global", days: 31, price: 30000, label: "Mensuel",   tagline: "31 jours" },
-  { id: "premium-lifetime", days: 0, price: 35000, label: "À Vie", tagline: "Accès permanent, sans expiration", lifetime: true },
+  { id: "premium-global", days: 7,   price: priceFor(7),   label: "Découverte",   tagline: "1 semaine" },
+  { id: "premium-global", days: 15,  price: priceFor(15),  label: "Standard",     tagline: "2 semaines" },
+  { id: "premium-global", days: 30,  price: priceFor(30),  label: "Mensuel",      tagline: "1 mois", popular: true },
+  { id: "premium-lifetime", days: 0, price: LIFETIME_PRICE, label: "À Vie", tagline: "Accès permanent, sans expiration", lifetime: true },
 ];
 
 const renderCell = (v: boolean | string, premium: boolean) => {
@@ -54,15 +58,12 @@ const Premium = () => {
   const location = useLocation();
   const access = usePremiumAccess();
   const [selectedPlan, setSelectedPlan] = useState<Plan | null>(null);
-  const [customDays, setCustomDays] = useState<number>(10);
   const initialTab = (location.hash || "").replace("#", "") || "dashboard";
   const [tab, setTab] = useState<string>(initialTab);
   useEffect(() => {
     const h = (location.hash || "").replace("#", "");
     if (h && ["dashboard", "plans", "history", "help"].includes(h)) setTab(h);
   }, [location.hash]);
-  const customPrice = Math.round(customDays * (30000 / 31));
-
 
   if (selectedPlan) {
     return (
@@ -75,11 +76,11 @@ const Premium = () => {
             Souscription Premium <span className="text-muted-foreground font-normal">· {selectedPlan.label}</span>
           </h1>
         </div>
-        <SubscriptionFlow
+        <SubscriptionWizard
           gameMode={selectedPlan.id}
           gameName={selectedPlan.lifetime ? "Premium À Vie" : "Premium"}
-          fixedDays={selectedPlan.lifetime ? 0 : selectedPlan.days}
-          fixedPrice={selectedPlan.price}
+          days={selectedPlan.lifetime ? 0 : selectedPlan.days}
+          price={selectedPlan.price}
           lifetime={selectedPlan.lifetime}
           onAccessGranted={() => { setSelectedPlan(null); setTab("dashboard"); }}
           onCancel={() => setSelectedPlan(null)}
@@ -98,123 +99,62 @@ const Premium = () => {
   const PlansSection = (
     <div className="space-y-8">
       <section className="space-y-3">
-        <h2 className="text-xs uppercase tracking-widest text-muted-foreground font-bold">Plans tarifaires</h2>
-        <div className="grid gap-3">
-          {PLANS.map((p, i) => (
+        <h2 className="text-xs uppercase tracking-widest text-muted-foreground font-bold">Choisissez la durée</h2>
+        <p className="text-[11px] text-muted-foreground -mt-1">Sélectionnez une formule, puis suivez les étapes : paiement → preuve → validation admin.</p>
+        <div className="grid grid-cols-2 gap-2.5">
+          {PLANS.filter((p) => !p.lifetime).map((p, i) => (
             <button
               key={i}
               onClick={() => handleSelect(p)}
-              className={`relative w-full text-left rounded-2xl p-4 border-2 transition-all active:scale-[0.98] backdrop-blur ${
-                p.lifetime
-                  ? "border-amber-400/70 bg-gradient-to-br from-amber-500/15 via-amber-500/5 to-amber-500/5 shadow-lg shadow-amber-500/20"
-                  : p.popular
-                  ? "border-primary bg-gradient-to-br from-primary/15 via-primary/5 to-transparent shadow-lg glow-gold"
-                  : "border-border/60 bg-card/70 hover:border-primary/40"
+              className={`relative text-left rounded-2xl p-3 border-2 transition-all active:scale-[0.97] backdrop-blur ${
+                p.popular
+                  ? "border-primary bg-gradient-to-br from-primary/20 via-primary/8 to-transparent shadow-lg glow-gold"
+                  : "border-border/60 bg-card/70 hover:border-primary/50"
               }`}
             >
               {p.popular && (
-                <div className="absolute -top-2.5 left-4 px-2 py-0.5 rounded-full gold-gradient text-[9px] font-black text-primary-foreground uppercase tracking-wider">
-                  Le plus choisi
+                <div className="absolute -top-2 right-2 px-1.5 py-0.5 rounded-full gold-gradient text-[8px] font-black text-primary-foreground uppercase tracking-wider">
+                  Populaire
                 </div>
               )}
-              {p.lifetime && (
-                <div className="absolute -top-2.5 left-4 px-2 py-0.5 rounded-full bg-gradient-to-r from-amber-400 to-amber-500 text-[9px] font-black text-white uppercase tracking-wider flex items-center gap-1">
-                  <Gem className="w-2.5 h-2.5" /> Offre à vie
-                </div>
-              )}
-              <div className="flex items-center justify-between gap-3">
-                <div className="min-w-0">
-                  <div className="text-[10px] uppercase tracking-widest text-muted-foreground font-semibold">{p.label}</div>
-                  <div className="text-2xl font-black mt-0.5 flex items-baseline gap-1.5">
-                    {p.lifetime ? (
-                      <>À <span className="gold-text">vie</span></>
-                    ) : (
-                      <>{p.days} <span className="text-sm font-medium text-muted-foreground">jours</span></>
-                    )}
-                  </div>
-                  <div className="text-[10px] text-muted-foreground mt-0.5">{p.tagline}</div>
-                </div>
-                <div className="text-right shrink-0">
-                  <div className="text-xl font-black gold-text">{p.price.toLocaleString()}<span className="text-xs"> Ar</span></div>
-                  <div className="text-[9px] text-muted-foreground">
-                    {p.lifetime ? "paiement unique" : `${Math.round(p.price / p.days).toLocaleString()} Ar/jour`}
-                  </div>
-                </div>
+              <div className="text-[9px] uppercase tracking-widest text-muted-foreground font-semibold">{p.label}</div>
+              <div className="text-2xl font-black mt-0.5 leading-none flex items-baseline gap-1">
+                {p.days}<span className="text-xs font-medium text-muted-foreground">j</span>
+              </div>
+              <div className="text-[9px] text-muted-foreground mt-0.5">{p.tagline}</div>
+              <div className="mt-2 pt-2 border-t border-border/40">
+                <div className="text-base font-black gold-text leading-none">{p.price.toLocaleString()}<span className="text-[10px]"> Ar</span></div>
+                <div className="text-[8px] text-muted-foreground mt-0.5">{Math.round(p.price / p.days).toLocaleString()} Ar/jour</div>
               </div>
             </button>
           ))}
+        </div>
 
-          {/* Plan personnalisé */}
-          <div className="relative w-full rounded-2xl p-4 border-2 border-amber-500/50 bg-gradient-to-br from-amber-500/15 via-emerald-500/8 to-transparent shadow-lg shadow-amber-500/15 backdrop-blur">
-            <div className="absolute -top-2.5 left-4 px-2 py-0.5 rounded-full bg-gradient-to-r from-amber-500 to-amber-500 text-[9px] font-black text-white uppercase tracking-wider flex items-center gap-1">
-              <Settings2 className="w-2.5 h-2.5" /> Personnalisé
+        {PLANS.filter((p) => p.lifetime).map((p, i) => (
+          <button
+            key={`life-${i}`}
+            onClick={() => handleSelect(p)}
+            className="relative w-full text-left rounded-2xl p-4 border-2 border-amber-400/70 bg-gradient-to-br from-amber-500/20 via-amber-500/8 to-amber-500/5 shadow-lg shadow-amber-500/20 active:scale-[0.98] transition backdrop-blur"
+          >
+            <div className="absolute -top-2.5 left-4 px-2 py-0.5 rounded-full bg-gradient-to-r from-amber-400 to-amber-500 text-[9px] font-black text-white uppercase tracking-wider flex items-center gap-1">
+              <Gem className="w-2.5 h-2.5" /> Offre à vie
             </div>
-            <div className="flex items-start justify-between gap-3">
-              <div className="min-w-0 flex-1">
-                <div className="text-[10px] uppercase tracking-widest text-amber-300 font-semibold">Choisissez votre durée</div>
-                <div className="text-2xl font-black mt-0.5 flex items-baseline gap-1.5 text-amber-200">
-                  {customDays} <span className="text-sm font-medium text-muted-foreground">jour{customDays > 1 ? "s" : ""}</span>
+            <div className="flex items-center justify-between gap-3">
+              <div className="min-w-0">
+                <div className="text-[10px] uppercase tracking-widest text-muted-foreground font-semibold">{p.label}</div>
+                <div className="text-2xl font-black mt-0.5 flex items-baseline gap-1.5">
+                  À <span className="gold-text">vie</span>
                 </div>
-                <div className="text-[10px] text-muted-foreground mt-0.5">Entre 2 et 365 jours · sur mesure</div>
+                <div className="text-[10px] text-muted-foreground mt-0.5">{p.tagline}</div>
               </div>
               <div className="text-right shrink-0">
-                <div className="text-xl font-black text-amber-300">{customPrice.toLocaleString()}<span className="text-xs"> Ar</span></div>
-                <div className="text-[9px] text-muted-foreground">{Math.round(customPrice / Math.max(1, customDays)).toLocaleString()} Ar/jour</div>
+                <div className="text-xl font-black gold-text">{p.price.toLocaleString()}<span className="text-xs"> Ar</span></div>
+                <div className="text-[9px] text-muted-foreground">paiement unique</div>
               </div>
             </div>
+          </button>
+        ))}
 
-            <div className="mt-3 flex items-center gap-2">
-              <button
-                onClick={() => setCustomDays((d) => Math.max(2, d - 1))}
-                className="w-10 h-10 rounded-xl border border-amber-500/40 bg-amber-500/10 hover:bg-amber-500/20 active:scale-95 flex items-center justify-center text-amber-300 transition"
-                aria-label="Diminuer"
-              >
-                <Minus className="w-4 h-4" />
-              </button>
-              <Input
-                type="number"
-                min={2}
-                max={365}
-                value={customDays}
-                onChange={(e) => {
-                  const v = parseInt(e.target.value);
-                  if (!isNaN(v)) setCustomDays(Math.min(365, Math.max(2, v)));
-                }}
-                className="h-10 flex-1 text-center font-mono font-bold text-base bg-background/60 border-amber-500/30"
-              />
-              <button
-                onClick={() => setCustomDays((d) => Math.min(365, d + 1))}
-                className="w-10 h-10 rounded-xl border border-amber-500/40 bg-amber-500/10 hover:bg-amber-500/20 active:scale-95 flex items-center justify-center text-amber-300 transition"
-                aria-label="Augmenter"
-              >
-                <Plus className="w-4 h-4" />
-              </button>
-            </div>
-
-            <div className="mt-2 flex flex-wrap gap-1.5">
-              {[5, 10, 20, 45, 60, 90].map((d) => (
-                <button
-                  key={d}
-                  onClick={() => setCustomDays(d)}
-                  className={`text-[10px] px-2 py-1 rounded-full border font-semibold transition ${
-                    customDays === d
-                      ? "border-amber-500 bg-amber-500/30 text-amber-100"
-                      : "border-amber-500/30 bg-amber-500/5 text-amber-300 hover:bg-amber-500/15"
-                  }`}
-                >
-                  {d}j
-                </button>
-              ))}
-            </div>
-
-            <Button
-              className="w-full h-11 mt-3 bg-gradient-to-r from-amber-500 to-amber-500 hover:from-amber-400 hover:to-amber-400 text-white font-bold shadow-lg"
-              onClick={() => handleSelect({ id: "premium-global", days: customDays, price: customPrice, label: `Personnalisé ${customDays}j`, tagline: `${customDays} jours sur mesure` })}
-            >
-              <Settings2 className="w-4 h-4 mr-2" /> Souscrire {customDays} jour{customDays > 1 ? "s" : ""} · {customPrice.toLocaleString()} Ar
-            </Button>
-          </div>
-        </div>
       </section>
 
       <section className="space-y-3">

@@ -940,12 +940,14 @@ export type Database = {
           email: string
           full_name: string | null
           gen_store_last_seen_at: string | null
+          gender: string | null
           id: string
           is_validated: boolean
           last_seen_at: string | null
           location: string | null
           login_count: number
           name: string
+          phone: string | null
           region: string | null
           status: string
           trial_started_at: string | null
@@ -962,12 +964,14 @@ export type Database = {
           email: string
           full_name?: string | null
           gen_store_last_seen_at?: string | null
+          gender?: string | null
           id?: string
           is_validated?: boolean
           last_seen_at?: string | null
           location?: string | null
           login_count?: number
           name: string
+          phone?: string | null
           region?: string | null
           status?: string
           trial_started_at?: string | null
@@ -984,12 +988,14 @@ export type Database = {
           email?: string
           full_name?: string | null
           gen_store_last_seen_at?: string | null
+          gender?: string | null
           id?: string
           is_validated?: boolean
           last_seen_at?: string | null
           location?: string | null
           login_count?: number
           name?: string
+          phone?: string | null
           region?: string | null
           status?: string
           trial_started_at?: string | null

@@ -1,6 +1,8 @@
 import { useState, useEffect, useRef } from "react";
 import jhLogo from "@/assets/jh-logo.png";
-import splashTheme from "@/assets/splash-theme.mp3.asset.json";
+import splashTheme from "@/assets/splash-theme-v5.mp3.asset.json";
+import welcomeTheme from "@/assets/welcome-theme-v5.mp3.asset.json";
+import { preloadWelcomeAudio } from "@/lib/introAudio";
 
 interface SplashScreenProps {
   onComplete: () => void;
@@ -11,7 +13,8 @@ interface SplashScreenProps {
  * Anneau conique doré tournant, halo pulsé, monogramme JH, barre de progression fine.
  * Synchronisé sur la bande sonore (13s).
  */
-const SPLASH_DURATION_MS = 13000;
+const SPLASH_DURATION_MS = 13800;
+const FADE_OUT_MS = 4500; // fondu sonore progressif en fin de splash
 
 const SplashScreen = ({ onComplete }: SplashScreenProps) => {
   const [progress, setProgress] = useState(0);
@@ -34,6 +37,8 @@ const SplashScreen = ({ onComplete }: SplashScreenProps) => {
   ];
 
   useEffect(() => {
+    // Précharge la musique de bienvenue pour un enchaînement sans coupure
+    preloadWelcomeAudio(welcomeTheme.url);
     // Élément audio compatible iOS Safari + Android Chrome
     const audio = new Audio();
     audio.src = splashTheme.url;
@@ -61,24 +66,39 @@ const SplashScreen = ({ onComplete }: SplashScreenProps) => {
       startedRef.current = true;
       setNeedsTap(false);
       const startedAt = performance.now();
+      // Fondu sortant progressif de 5 s avant la fin du splash
+      let fadeStartedAt = 0;
+      let fadeBaseVol = 1;
       const tick = (t: number) => {
         const elapsed = t - startedAt;
         const p = Math.min(100, (elapsed / totalMs) * 100);
         setProgress(p);
         setStepIdx(Math.min(steps.length - 1, Math.floor((p / 100) * steps.length)));
+        if (elapsed >= totalMs - FADE_OUT_MS) {
+          if (!fadeStartedAt) {
+            fadeStartedAt = t;
+            fadeBaseVol = audio.volume || 1;
+          }
+          const fp = Math.min(1, (t - fadeStartedAt) / FADE_OUT_MS);
+          // Courbe équi-puissance : décroissance perçue comme naturelle
+          const gain = Math.cos((fp * Math.PI) / 2);
+          try { audio.volume = Math.max(0, fadeBaseVol * gain); } catch { /* noop */ }
+        }
         if (p < 100) {
           rafRef.current = requestAnimationFrame(tick);
         } else if (!doneRef.current) {
           doneRef.current = true;
           setLeaving(true);
+          try { audio.volume = 0; } catch { /* noop */ }
           setTimeout(() => {
             try {
               audio.pause();
               audio.src = "";
             } catch { /* noop */ }
             onComplete();
-          }, 400);
+          }, 300);
         }
+
       };
       rafRef.current = requestAnimationFrame(tick);
     };
