@@ -80,7 +80,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   // côté client. On interroge uniquement « un code est-il exigé ? » puis on
   // fait vérifier la saisie par le serveur (fonction sécurisée).
   const checkAccessCode = async () => {
-    const { data, error } = await supabase.rpc("app_access_code_required");
+    const { data, error } = await rpc("app_access_code_required");
     if (!error) {
       const required = data === true;
       setAccessCodeRequired(required);
@@ -99,7 +99,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   };
 
   const verifyAccessCode = async (code: string): Promise<boolean> => {
-    const { data, error } = await supabase.rpc("verify_app_access_code", { _code: code });
+    const { data, error } = await rpc("verify_app_access_code", { _code: code });
     if (!error) {
       const ok = data === true;
       if (ok) setAccessCodeVerified(true);
