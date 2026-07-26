@@ -112,7 +112,12 @@ export const usePremiumAccess = (): PremiumAccessState => {
     const trialActive = trialStart > 0 && Date.now() < trialEnd;
     let ticker: number | undefined;
     if (trialActive) {
-      ticker = window.setInterval(() => { check(); }, 5000);
+      // Perf : on n'interroge plus la base toutes les 5 s et jamais quand
+      // l'onglet est masqué (moins de requêtes, moins de saccades).
+      ticker = window.setInterval(() => {
+        if (typeof document !== "undefined" && document.hidden) return;
+        check();
+      }, 20000);
     }
     if (!user) {
       return () => { if (ticker) clearInterval(ticker); };

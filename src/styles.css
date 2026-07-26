@@ -695,3 +695,21 @@
     }
   }
 }
+
+
+/* Perf : respect des préférences système et accélération GPU des couches animées */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+#jh-custom-bg-video video,
+#jh-custom-bg {
+  transform: translateZ(0);
+  will-change: transform;
+  backface-visibility: hidden;
+}
