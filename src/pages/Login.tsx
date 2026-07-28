@@ -195,6 +195,35 @@ const Login = () => {
       {/* Main */}
       <main className="relative z-10 flex-1 flex flex-col items-center justify-start px-5 pt-8 pb-10">
         <div className="w-full max-w-[400px]">
+          {/* Connexion — recherche de compte (design premium discret) */}
+          <button
+            onClick={() => setShowFinder(true)}
+            className="group relative w-full mb-6 rounded-2xl p-[1px] overflow-hidden active:scale-[0.99] transition-transform"
+            style={{
+              background:
+                "linear-gradient(135deg, hsl(45 92% 68% / 0.75), hsl(42 82% 50% / 0.35), hsl(45 92% 68% / 0.75))",
+            }}
+          >
+            <span className="relative flex items-center gap-3 rounded-[calc(1rem-1px)] bg-[hsl(158_60%_6%)]/95 backdrop-blur px-4 py-3.5">
+              <span
+                aria-hidden
+                className="pointer-events-none absolute inset-y-0 -left-1/2 w-1/4 rotate-12 bg-gradient-to-r from-transparent via-[hsl(45_92%_70%_/_0.18)] to-transparent"
+                style={{ animation: "premium-sweep 4s ease-in-out infinite" }}
+              />
+              <span className="w-9 h-9 rounded-xl bg-[hsl(var(--gold)/0.12)] border border-[hsl(var(--gold)/0.3)] flex items-center justify-center shrink-0">
+                <Search className="w-4 h-4 text-[hsl(var(--gold))]" />
+              </span>
+              <span className="flex-1 min-w-0 text-left">
+                <span className="block text-[14px] font-bold text-foreground leading-tight">Connexion</span>
+                <span className="block text-[11px] text-foreground/50 mt-0.5">
+                  Retrouvez votre compte en un instant
+                </span>
+              </span>
+              <ChevronRight className="w-4 h-4 text-[hsl(var(--gold))] group-hover:translate-x-0.5 transition-transform" />
+            </span>
+          </button>
+
+
           {/* Hero */}
           <div className="text-center mb-6 animate-blur-in">
             <h1 className="font-display text-[28px] font-bold tracking-tight leading-tight">
