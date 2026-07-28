@@ -106,9 +106,20 @@ const Login = () => {
       if (data.user && rememberMe) {
         await rememberCurrentAccount(data.user.id, fallback);
       }
+      if (data.user && !rememberMe) {
+        removeSavedAccount(data.user.id);
+      }
       try {
         localStorage.setItem("jh_remember_me", rememberMe ? "1" : "0");
+        if (rememberMe) {
+          localStorage.setItem("jh_last_identifier", fallback.identifier);
+          localStorage.setItem("jh_last_method", fallback.method);
+        } else {
+          localStorage.removeItem("jh_last_identifier");
+          localStorage.removeItem("jh_last_method");
+        }
       } catch { /* no-op */ }
+
       toast.success("Connexion réussie !");
       navigate("/games");
     } catch (err: any) {
