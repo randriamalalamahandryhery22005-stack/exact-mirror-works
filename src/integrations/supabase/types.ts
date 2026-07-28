@@ -468,8 +468,8 @@ export type Database = {
           created_by: string | null
           description: string
           download_count: number
-          file_name: string
-          file_path: string
+          file_name: string | null
+          file_path: string | null
           file_size: number
           file_url: string | null
           id: string
@@ -488,8 +488,8 @@ export type Database = {
           created_by?: string | null
           description: string
           download_count?: number
-          file_name: string
-          file_path: string
+          file_name?: string | null
+          file_path?: string | null
           file_size?: number
           file_url?: string | null
           id?: string
@@ -508,8 +508,8 @@ export type Database = {
           created_by?: string | null
           description?: string
           download_count?: number
-          file_name?: string
-          file_path?: string
+          file_name?: string | null
+          file_path?: string | null
           file_size?: number
           file_url?: string | null
           id?: string
@@ -1265,18 +1265,8 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      app_access_code_required: { Args: never; Returns: boolean }
-      consume_user_coins: { Args: never; Returns: undefined }
       get_active_device: { Args: { _user_id: string }; Returns: string }
       get_total_revenue: { Args: never; Returns: number }
-      grant_subscription_coins: {
-        Args: never
-        Returns: {
-          balance: number
-          plan_expires_at: string
-          plan_type: string
-        }[]
-      }
       has_active_premium_bonus: { Args: { _user_id: string }; Returns: boolean }
       has_role: {
         Args: {
@@ -1289,9 +1279,6 @@ export type Database = {
         Args: { _conv: string; _user: string }
         Returns: boolean
       }
-      show_limit: { Args: never; Returns: number }
-      show_trgm: { Args: { "": string }; Returns: string[] }
-      verify_app_access_code: { Args: { _code: string }; Returns: boolean }
     }
     Enums: {
       app_role: "admin" | "user"
