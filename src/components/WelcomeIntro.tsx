@@ -1,12 +1,13 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import jhLogo from "@/assets/jh-logo.png";
+import welcomeTheme from "@/assets/welcome-theme.mp3.asset.json";
 
 /**
  * Écran d'accueil animé affiché juste après le SplashScreen.
- * Version silencieuse : aucune bande sonore n'est chargée.
- * Durée fixe pour garantir la transition vers la page suivante.
+ * Synchronisé sur la bande sonore de bienvenue (~4,7 s) avec fondu de sortie.
  */
-const TOTAL_MS = 2800;
+const TOTAL_MS = 4700;
+const FADE_MS = 900;
 
 interface Props {
   onComplete: () => void;
@@ -15,23 +16,95 @@ interface Props {
 const WelcomeIntro = ({ onComplete }: Props) => {
   const [leaving, setLeaving] = useState(false);
   const doneRef = useRef(false);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+  const startedRef = useRef(false);
+  const timersRef = useRef<number[]>([]);
 
-  useEffect(() => {
-    const exitAt = window.setTimeout(() => setLeaving(true), Math.max(0, TOTAL_MS - 400));
+  const startTimeline = useCallback(() => {
+    if (startedRef.current) return;
+    startedRef.current = true;
+
+    const exitAt = window.setTimeout(() => {
+      setLeaving(true);
+      const el = audioRef.current;
+      if (el) {
+        const from = el.volume;
+        const t0 = performance.now();
+        const fade = (t: number) => {
+          const k = Math.min(1, (t - t0) / FADE_MS);
+          el.volume = Math.max(0, from * (1 - k));
+          if (k < 1) requestAnimationFrame(fade);
+          else el.pause();
+        };
+        requestAnimationFrame(fade);
+      }
+    }, Math.max(0, TOTAL_MS - FADE_MS));
+
     const finishAt = window.setTimeout(() => {
       if (doneRef.current) return;
       doneRef.current = true;
       onComplete();
     }, TOTAL_MS);
-    return () => {
-      window.clearTimeout(exitAt);
-      window.clearTimeout(finishAt);
-    };
+
+    timersRef.current.push(exitAt, finishAt);
   }, [onComplete]);
+
+  useEffect(() => {
+    const el = new Audio(welcomeTheme.url);
+    el.preload = "auto";
+    el.volume = 1;
+    el.setAttribute("playsinline", "");
+    audioRef.current = el;
+
+    const onPlaying = () => {
+      el.muted = false;
+      el.volume = 1;
+      startTimeline();
+    };
+    el.addEventListener("playing", onPlaying);
+
+    (async () => {
+      try {
+        await el.play();
+      } catch {
+        try {
+          el.muted = true;
+          await el.play();
+        } catch {
+          /* geste requis */
+        }
+      }
+    })();
+
+    const onGesture = () => {
+      el.muted = false;
+      el.volume = 1;
+      el.play().catch(() => {});
+      startTimeline();
+    };
+    const evts: (keyof WindowEventMap)[] = ["pointerdown", "touchstart", "click", "keydown"];
+    evts.forEach((e) => window.addEventListener(e, onGesture, { once: true, passive: true } as any));
+
+    const safety = window.setTimeout(startTimeline, 1200);
+
+    return () => {
+      window.clearTimeout(safety);
+      timersRef.current.forEach((t) => window.clearTimeout(t));
+      timersRef.current = [];
+      evts.forEach((e) => window.removeEventListener(e, onGesture));
+      el.removeEventListener("playing", onPlaying);
+      try {
+        el.pause();
+      } catch {
+        /* noop */
+      }
+      audioRef.current = null;
+    };
+  }, [startTimeline]);
 
   return (
     <div
-      className={`fixed inset-0 z-[9998] flex flex-col items-center justify-center overflow-hidden transition-all duration-500 ${
+      className={`fixed inset-0 z-[9998] flex flex-col items-center justify-center overflow-hidden transition-all duration-700 ${
         leaving ? "opacity-0 scale-105" : "opacity-100 scale-100"
       }`}
       style={{
