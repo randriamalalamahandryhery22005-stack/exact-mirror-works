@@ -239,8 +239,29 @@ function RootPanel({
         <ChevronRight className="w-4 h-4 text-slate-400" />
       </button>
 
+      {user && missingProfileFields.length > 0 && (
+        <button
+          onClick={() => { onClose(); navigate("/profile"); }}
+          className="mb-2 w-full flex items-start gap-3 rounded-2xl p-3.5 bg-amber-500/10 border border-amber-400/30 hover:bg-amber-500/15 transition text-left"
+        >
+          <span className="w-9 h-9 rounded-xl bg-amber-500/20 border border-amber-400/30 flex items-center justify-center shrink-0">
+            <Bell className="w-4 h-4 text-amber-300" />
+          </span>
+          <span className="flex-1 min-w-0">
+            <span className="block text-[13px] font-semibold text-amber-100">
+              Profil incomplet
+            </span>
+            <span className="block text-[11px] text-amber-200/70 mt-0.5">
+              À compléter : {missingProfileFields.join(", ")}
+            </span>
+          </span>
+          <ChevronRight className="w-4 h-4 text-amber-300 mt-1" />
+        </button>
+      )}
+
       <Group title="Compte">
         <Row icon={<User className="w-[18px] h-[18px] text-amber-300" />} label="Profil" onClick={() => goto("profile")} />
+
         <Row icon={<Settings className="w-[18px] h-[18px] text-emerald-300" />} label="Paramètres" onClick={() => goto("settings")} />
         <Row icon={<Bell className="w-[18px] h-[18px] text-amber-300" />} label="Notifications" onClick={() => goto("notifications")} />
         {user && (
