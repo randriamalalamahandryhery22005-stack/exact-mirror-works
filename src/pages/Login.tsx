@@ -16,10 +16,13 @@ import {
   X,
   Plus,
   ChevronRight,
+  Search,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import jhLogo from "@/assets/jh-logo.png";
+import AccountSearch from "@/components/AccountSearch";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import {
   getSavedAccounts,
   removeSavedAccount,
@@ -28,6 +31,7 @@ import {
   initialsFrom,
   type SavedAccount,
 } from "@/lib/savedAccounts";
+
 
 const emailSchema = z.object({
   identifier: z.string().trim().toLowerCase().email("Adresse email invalide").max(255, "Email trop long"),
