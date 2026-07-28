@@ -73,7 +73,7 @@ const SplashScreen = ({ onComplete }: SplashScreenProps) => {
     const el = new Audio(splashTheme.url);
     el.preload = "auto";
     el.volume = 1;
-    el.playsInline = true;
+    el.setAttribute("playsinline", "");
     audioRef.current = el;
 
     const onPlaying = () => {
