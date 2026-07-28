@@ -221,6 +221,22 @@ function RootPanel({
   const displayName = profile?.full_name || profile?.name || user?.email?.split("@")[0] || "Invité";
   const initial = (displayName || "?").charAt(0).toUpperCase();
 
+  // Informations manquantes du profil → notification dans Paramètres > Compte
+  const missingProfileFields = useMemo(() => {
+    if (!user || !profile) return [] as string[];
+    const checks: Array<[string, unknown]> = [
+      ["nom complet", profile.full_name],
+      ["photo de profil", profile.avatar_url],
+      ["date de naissance", (profile as any).birth_date],
+      ["pays", (profile as any).country_code],
+      ["région", (profile as any).region],
+      ["téléphone", (profile as any).phone],
+      ["sexe", (profile as any).gender],
+    ];
+    return checks.filter(([, v]) => !v || String(v).trim() === "").map(([k]) => k);
+  }, [user, profile]);
+
+
   return (
     <div className="space-y-1">
       <button
