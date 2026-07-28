@@ -1,98 +1,33 @@
 import { useEffect, useRef, useState } from "react";
 import jhLogo from "@/assets/jh-logo.png";
-import welcomeMusic from "@/assets/welcome-theme-v5.mp3.asset.json";
-import { takeWelcomeAudio, fadeAudio } from "@/lib/introAudio";
 
 /**
  * Écran d'accueil animé affiché juste après le SplashScreen.
- * Affiche le logo + message textuel « Bienvenue dans l'univers de Jeux d'Hazard. Bonne chance ! »
- * accompagné d'une musique douce qui s'estompe (fade-out) avant transition.
- *
- * Voix off (optionnelle) : ajoutez un asset `src/assets/welcome-voice.mp3.asset.json`
- * pour qu'elle soit jouée automatiquement par-dessus la musique.
+ * Version silencieuse : aucune bande sonore n'est chargée.
+ * Durée fixe pour garantir la transition vers la page suivante.
  */
-
-const FALLBACK_TOTAL_MS = 5400; // Repli si la durée réelle est inconnue
-const FADE_IN_MS = 900;         // Fondu entrant, en relais du fondu du Splash
-const FADE_OUT_MS = 1200;       // Fondu sortant avant la sortie de l'écran
-const TAIL_MS = 500;            // Petit silence après la piste
+const TOTAL_MS = 2800;
 
 interface Props {
   onComplete: () => void;
-  voiceUrl?: string;
 }
 
-const WelcomeIntro = ({ onComplete, voiceUrl }: Props) => {
+const WelcomeIntro = ({ onComplete }: Props) => {
   const [leaving, setLeaving] = useState(false);
-  const musicRef = useRef<HTMLAudioElement | null>(null);
-  const voiceRef = useRef<HTMLAudioElement | null>(null);
   const doneRef = useRef(false);
 
   useEffect(() => {
-    // Musique de bienvenue : élément préchargé pendant le Splash → démarrage instantané
-    const music = takeWelcomeAudio(welcomeMusic.url);
-    music.currentTime = 0;
-    music.volume = 0;
-    musicRef.current = music;
-
-    const timers: number[] = [];
-
-    const startFades = () => {
-      // Fondu entrant qui prend le relais du fondu sortant du Splash
-      fadeAudio(music, 0.95, FADE_IN_MS);
-      const trackMs = Number.isFinite(music.duration) && music.duration > 0
-        ? music.duration * 1000
-        : FALLBACK_TOTAL_MS;
-      const totalMs = Math.max(3200, trackMs + TAIL_MS);
-      timers.push(window.setTimeout(() => fadeAudio(music, 0, FADE_OUT_MS), Math.max(0, totalMs - FADE_OUT_MS)));
-      timers.push(window.setTimeout(() => {
-        if (doneRef.current) return;
-        doneRef.current = true;
-        setLeaving(true);
-        window.setTimeout(() => {
-          try { music.pause(); music.src = ""; } catch { /* noop */ }
-          try { voiceRef.current?.pause(); if (voiceRef.current) voiceRef.current.src = ""; } catch { /* noop */ }
-          onComplete();
-        }, 400);
-      }, totalMs));
-    };
-
-    const begin = () => {
-      if (music.readyState >= 1) startFades();
-      else music.addEventListener("loadedmetadata", startFades, { once: true });
-    };
-
-    const p = music.play();
-    if (p && typeof p.then === "function") {
-      p.then(begin).catch(() => {
-        music.muted = true;
-        music.play()
-          .then(() => { setTimeout(() => { music.muted = false; }, 0); begin(); })
-          .catch(() => { begin(); });
-      });
-    } else {
-      begin();
-    }
-
-    // Voix off optionnelle
-    if (voiceUrl) {
-      const voice = new Audio(voiceUrl);
-      voice.preload = "auto";
-      voice.volume = 1;
-      (voice as HTMLAudioElement & { playsInline?: boolean }).playsInline = true;
-      voice.setAttribute("playsinline", "");
-      voiceRef.current = voice;
-      // Petit délai pour laisser la musique poser l'ambiance
-      setTimeout(() => { voice.play().catch(() => { /* noop */ }); }, 500);
-    }
-
+    const exitAt = window.setTimeout(() => setLeaving(true), Math.max(0, TOTAL_MS - 400));
+    const finishAt = window.setTimeout(() => {
+      if (doneRef.current) return;
+      doneRef.current = true;
+      onComplete();
+    }, TOTAL_MS);
     return () => {
-      timers.forEach((t) => window.clearTimeout(t));
-      music.removeEventListener("loadedmetadata", startFades);
-      try { music.pause(); music.src = ""; } catch { /* noop */ }
-      try { voiceRef.current?.pause(); if (voiceRef.current) voiceRef.current.src = ""; } catch { /* noop */ }
+      window.clearTimeout(exitAt);
+      window.clearTimeout(finishAt);
     };
-  }, [onComplete, voiceUrl]);
+  }, [onComplete]);
 
   return (
     <div

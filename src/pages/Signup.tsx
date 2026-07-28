@@ -342,7 +342,7 @@ const Signup = () => {
           avatar_url: avatarUrl,
           gender: formData.gender || null,
           phone: normalizePhone(formData.profilePhone || formData.phone) || null,
-        })
+        } as never)
         .eq("user_id", userId);
       if (profileErr) throw new Error("Impossible d'enregistrer le profil : " + profileErr.message);
 

@@ -1,6 +1,7 @@
 // Fond d'écran vidéo de l'application.
 // La vidéo choisie par l'utilisateur est stockée localement (IndexedDB) afin de
 // survivre aux rechargements, et appliquée derrière toute l'interface.
+import { setBackdropActive } from "@/lib/backdrop";
 
 const DB_NAME = "jh-personalization";
 const STORE = "media";
@@ -105,6 +106,7 @@ export function applyBackgroundVideo(src: string | null, opts: VideoBgOptions = 
   if (!src) {
     existing?.remove();
     if (currentObjectUrl) { URL.revokeObjectURL(currentObjectUrl); currentObjectUrl = null; }
+    setBackdropActive("video", false);
     return;
   }
   let wrapper = existing;
@@ -145,6 +147,7 @@ export function applyBackgroundVideo(src: string | null, opts: VideoBgOptions = 
   }
   if (!video) return;
   if (video.src !== src) video.src = src;
+  setBackdropActive("video", true);
 
   const wantSound = opts.muted === false;
   video.muted = !wantSound;
