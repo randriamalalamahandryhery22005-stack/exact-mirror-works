@@ -1,5 +1,6 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import jhLogo from "@/assets/jh-logo.png";
+import splashTheme from "@/assets/splash-theme.mp3.asset.json";
 
 interface SplashScreenProps {
   onComplete: () => void;
@@ -7,9 +8,9 @@ interface SplashScreenProps {
 
 /**
  * Splash luxe "Jeux d'Hazard" — Émeraude Prestige.
- * Version silencieuse : plus aucune bande sonore n'est chargée.
+ * Bande sonore de 14 s, animations calées exactement sur la musique.
  */
-const SPLASH_DURATION_MS = 3200;
+const SPLASH_DURATION_MS = 14000;
 
 const SplashScreen = ({ onComplete }: SplashScreenProps) => {
   const [progress, setProgress] = useState(0);
@@ -17,6 +18,8 @@ const SplashScreen = ({ onComplete }: SplashScreenProps) => {
   const [stepIdx, setStepIdx] = useState(0);
   const doneRef = useRef(false);
   const rafRef = useRef(0);
+  const startedRef = useRef(false);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
 
   const steps = [
     "Initialisation du salon",
@@ -27,24 +30,99 @@ const SplashScreen = ({ onComplete }: SplashScreenProps) => {
     "Prêt à jouer",
   ];
 
-  useEffect(() => {
+  const finish = useCallback(() => {
+    if (doneRef.current) return;
+    doneRef.current = true;
+    setLeaving(true);
+    const el = audioRef.current;
+    if (el) {
+      // Fondu de sortie pour enchaîner proprement sur l'écran suivant.
+      const from = el.volume;
+      const t0 = performance.now();
+      const fade = (t: number) => {
+        const k = Math.min(1, (t - t0) / 450);
+        el.volume = Math.max(0, from * (1 - k));
+        if (k < 1) requestAnimationFrame(fade);
+        else {
+          el.pause();
+        }
+      };
+      requestAnimationFrame(fade);
+    }
+    setTimeout(() => onComplete(), 450);
+  }, [onComplete]);
+
+  // Timeline animée — démarre en même temps que la musique.
+  const startTimeline = useCallback(() => {
+    if (startedRef.current) return;
+    startedRef.current = true;
     const startedAt = performance.now();
     const tick = (t: number) => {
       const elapsed = t - startedAt;
       const p = Math.min(100, (elapsed / SPLASH_DURATION_MS) * 100);
       setProgress(p);
       setStepIdx(Math.min(steps.length - 1, Math.floor((p / 100) * steps.length)));
-      if (p < 100) {
-        rafRef.current = requestAnimationFrame(tick);
-      } else if (!doneRef.current) {
-        doneRef.current = true;
-        setLeaving(true);
-        setTimeout(() => onComplete(), 300);
-      }
+      if (p < 100) rafRef.current = requestAnimationFrame(tick);
+      else finish();
     };
     rafRef.current = requestAnimationFrame(tick);
-    return () => cancelAnimationFrame(rafRef.current);
-  }, [onComplete]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [finish]);
+
+  useEffect(() => {
+    const el = new Audio(splashTheme.url);
+    el.preload = "auto";
+    el.volume = 1;
+    el.setAttribute("playsinline", "");
+    audioRef.current = el;
+
+    const onPlaying = () => {
+      el.muted = false;
+      el.volume = 1;
+      startTimeline();
+    };
+    el.addEventListener("playing", onPlaying);
+
+    const tryPlay = async () => {
+      try {
+        await el.play();
+      } catch {
+        // Autoplay bloqué : repli muet (autorisé sur Chrome Android/iOS)
+        try {
+          el.muted = true;
+          await el.play();
+        } catch {
+          /* attend un geste utilisateur */
+        }
+      }
+    };
+    tryPlay();
+
+    const onGesture = () => {
+      el.muted = false;
+      el.volume = 1;
+      el.play().catch(() => {});
+      startTimeline();
+    };
+    const evts: (keyof WindowEventMap)[] = ["pointerdown", "touchstart", "click", "keydown"];
+    evts.forEach((e) => window.addEventListener(e, onGesture, { once: true, passive: true } as any));
+
+    // Filet de sécurité : ne jamais bloquer l'utilisateur si l'audio échoue.
+    const safety = window.setTimeout(startTimeline, 1500);
+
+    return () => {
+      window.clearTimeout(safety);
+      cancelAnimationFrame(rafRef.current);
+      evts.forEach((e) => window.removeEventListener(e, onGesture));
+      el.removeEventListener("playing", onPlaying);
+      try {
+        el.pause();
+      } catch {
+        /* noop */
+      }
+      audioRef.current = null;
+    };
+  }, [startTimeline]);
 
   return (
     <div

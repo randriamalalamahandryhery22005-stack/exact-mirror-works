@@ -16,10 +16,13 @@ import {
   X,
   Plus,
   ChevronRight,
+  Search,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import jhLogo from "@/assets/jh-logo.png";
+import AccountSearch from "@/components/AccountSearch";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import {
   getSavedAccounts,
   removeSavedAccount,
@@ -28,6 +31,7 @@ import {
   initialsFrom,
   type SavedAccount,
 } from "@/lib/savedAccounts";
+
 
 const emailSchema = z.object({
   identifier: z.string().trim().toLowerCase().email("Adresse email invalide").max(255, "Email trop long"),
@@ -54,12 +58,28 @@ const Login = () => {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const [rememberMe, setRememberMe] = useState(true);
+  const [showFinder, setShowFinder] = useState(false);
 
+  // « Se souvenir de moi » : on restaure le choix + le dernier identifiant utilisé.
   useEffect(() => {
     const list = getSavedAccounts();
     setSaved(list);
     setView(list.length > 0 ? "accounts" : "other");
+    try {
+      const flag = localStorage.getItem("jh_remember_me");
+      const remember = flag === null ? true : flag === "1";
+      setRememberMe(remember);
+      if (remember) {
+        const last = localStorage.getItem("jh_last_identifier") || "";
+        const lastMethod = localStorage.getItem("jh_last_method");
+        if (last) setIdentifier(last);
+        if (lastMethod === "phone" || lastMethod === "email") setLoginMethod(lastMethod);
+      }
+    } catch {
+      /* no-op */
+    }
   }, []);
+
 
   const heroTitle = useMemo(() => {
     if (view === "quick" && selected) return `Bonjour, ${selected.displayName.split(" ")[0]}`;
@@ -86,9 +106,20 @@ const Login = () => {
       if (data.user && rememberMe) {
         await rememberCurrentAccount(data.user.id, fallback);
       }
+      if (data.user && !rememberMe) {
+        removeSavedAccount(data.user.id);
+      }
       try {
         localStorage.setItem("jh_remember_me", rememberMe ? "1" : "0");
+        if (rememberMe) {
+          localStorage.setItem("jh_last_identifier", fallback.identifier);
+          localStorage.setItem("jh_last_method", fallback.method);
+        } else {
+          localStorage.removeItem("jh_last_identifier");
+          localStorage.removeItem("jh_last_method");
+        }
       } catch { /* no-op */ }
+
       toast.success("Connexion réussie !");
       navigate("/games");
     } catch (err: any) {
@@ -195,6 +226,35 @@ const Login = () => {
       {/* Main */}
       <main className="relative z-10 flex-1 flex flex-col items-center justify-start px-5 pt-8 pb-10">
         <div className="w-full max-w-[400px]">
+          {/* Connexion — recherche de compte (design premium discret) */}
+          <button
+            onClick={() => setShowFinder(true)}
+            className="group relative w-full mb-6 rounded-2xl p-[1px] overflow-hidden active:scale-[0.99] transition-transform"
+            style={{
+              background:
+                "linear-gradient(135deg, hsl(45 92% 68% / 0.75), hsl(42 82% 50% / 0.35), hsl(45 92% 68% / 0.75))",
+            }}
+          >
+            <span className="relative flex items-center gap-3 rounded-[calc(1rem-1px)] bg-[hsl(158_60%_6%)]/95 backdrop-blur px-4 py-3.5">
+              <span
+                aria-hidden
+                className="pointer-events-none absolute inset-y-0 -left-1/2 w-1/4 rotate-12 bg-gradient-to-r from-transparent via-[hsl(45_92%_70%_/_0.18)] to-transparent"
+                style={{ animation: "premium-sweep 4s ease-in-out infinite" }}
+              />
+              <span className="w-9 h-9 rounded-xl bg-[hsl(var(--gold)/0.12)] border border-[hsl(var(--gold)/0.3)] flex items-center justify-center shrink-0">
+                <Search className="w-4 h-4 text-[hsl(var(--gold))]" />
+              </span>
+              <span className="flex-1 min-w-0 text-left">
+                <span className="block text-[14px] font-bold text-foreground leading-tight">Connexion</span>
+                <span className="block text-[11px] text-foreground/50 mt-0.5">
+                  Retrouvez votre compte en un instant
+                </span>
+              </span>
+              <ChevronRight className="w-4 h-4 text-[hsl(var(--gold))] group-hover:translate-x-0.5 transition-transform" />
+            </span>
+          </button>
+
+
           {/* Hero */}
           <div className="text-center mb-6 animate-blur-in">
             <h1 className="font-display text-[28px] font-bold tracking-tight leading-tight">
@@ -444,7 +504,17 @@ const Login = () => {
           </p>
         </div>
       </main>
+
+      <Dialog open={showFinder} onOpenChange={setShowFinder}>
+        <DialogContent className="max-w-md rounded-3xl border-[hsl(var(--gold)/0.25)] bg-[hsl(158_60%_5%)]/97 backdrop-blur-xl">
+          <DialogHeader>
+            <DialogTitle className="font-display gold-text text-lg">Connexion</DialogTitle>
+          </DialogHeader>
+          <AccountSearch onClose={() => setShowFinder(false)} />
+        </DialogContent>
+      </Dialog>
     </div>
+
   );
 };
 
