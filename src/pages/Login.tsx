@@ -58,12 +58,28 @@ const Login = () => {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const [rememberMe, setRememberMe] = useState(true);
+  const [showFinder, setShowFinder] = useState(false);
 
+  // « Se souvenir de moi » : on restaure le choix + le dernier identifiant utilisé.
   useEffect(() => {
     const list = getSavedAccounts();
     setSaved(list);
     setView(list.length > 0 ? "accounts" : "other");
+    try {
+      const flag = localStorage.getItem("jh_remember_me");
+      const remember = flag === null ? true : flag === "1";
+      setRememberMe(remember);
+      if (remember) {
+        const last = localStorage.getItem("jh_last_identifier") || "";
+        const lastMethod = localStorage.getItem("jh_last_method");
+        if (last) setIdentifier(last);
+        if (lastMethod === "phone" || lastMethod === "email") setLoginMethod(lastMethod);
+      }
+    } catch {
+      /* no-op */
+    }
   }, []);
+
 
   const heroTitle = useMemo(() => {
     if (view === "quick" && selected) return `Bonjour, ${selected.displayName.split(" ")[0]}`;
