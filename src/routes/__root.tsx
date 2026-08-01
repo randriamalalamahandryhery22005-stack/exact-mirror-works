@@ -8,6 +8,7 @@ import {
   Scripts,
 } from "@tanstack/react-router";
 import { useEffect, useState, type ReactNode } from "react";
+import { SpeedInsights } from "@vercel/speed-insights/react";
 
 import appCss from "../styles.css?url";
 import { reportLovableError } from "../lib/lovable-error-reporting";
@@ -21,6 +22,10 @@ import GlobalCallRoot from "@/components/GlobalCallRoot";
 import ForceUpdateOverlay from "@/components/ForceUpdateOverlay";
 import TrialOverlay from "@/components/TrialOverlay";
 import AppPersonalizationRoot from "@/components/AppPersonalizationRoot";
+import BlockedAccountGate from "@/components/BlockedAccountGate";
+import PremiumSecurityRoot from "@/components/PremiumSecurityRoot";
+import "@/lib/safeVolume";
+
 
 function NotFoundComponent() {
   return (
@@ -97,11 +102,11 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       { title: "Jeux d'Hazard — Prédictions & Analyses Premium" },
       { property: "og:title", content: "Jeux d'Hazard — Prédictions & Analyses Premium" },
       { name: "twitter:title", content: "Jeux d'Hazard — Prédictions & Analyses Premium" },
-      { name: "description", content: "Plateforme Premium de prédictions et analyses avancées pour Aviator, JetX, CosmoX. Interface luxe, analyses en temps réel." },
-      { property: "og:description", content: "Plateforme Premium de prédictions et analyses avancées pour Aviator, JetX, CosmoX. Interface luxe, analyses en temps réel." },
-      { name: "twitter:description", content: "Plateforme Premium de prédictions et analyses avancées pour Aviator, JetX, CosmoX. Interface luxe, analyses en temps réel." },
-      { property: "og:image", content: "https://storage.googleapis.com/gpt-engineer-file-uploads/attachments/og-images/f2ab96e2-9d10-4b90-a3b9-e5f4a52e7d2a" },
-      { name: "twitter:image", content: "https://storage.googleapis.com/gpt-engineer-file-uploads/attachments/og-images/f2ab96e2-9d10-4b90-a3b9-e5f4a52e7d2a" },
+      { name: "description", content: "Plateforme Premium de Prédictions et Analyses Avancées pour Aviator, JetX, CosmoX.\nInterface Luxe, Analyses en Temps Réel. Tous droits réservés - Copyright 2017" },
+      { property: "og:description", content: "Plateforme Premium de Prédictions et Analyses Avancées pour Aviator, JetX, CosmoX.\nInterface Luxe, Analyses en Temps Réel. Tous droits réservés - Copyright 2017" },
+      { name: "twitter:description", content: "Plateforme Premium de Prédictions et Analyses Avancées pour Aviator, JetX, CosmoX.\nInterface Luxe, Analyses en Temps Réel. Tous droits réservés - Copyright 2017" },
+      { property: "og:image", content: "https://storage.googleapis.com/gpt-engineer-file-uploads/attachments/og-images/a38e51ab-9824-4abf-adb0-f8ddf649faff" },
+      { name: "twitter:image", content: "https://storage.googleapis.com/gpt-engineer-file-uploads/attachments/og-images/a38e51ab-9824-4abf-adb0-f8ddf649faff" },
     ],
     links: [
       {
@@ -132,6 +137,7 @@ function RootShell({ children }: { children: ReactNode }) {
       <body>
         {children}
         <Scripts />
+        <SpeedInsights />
       </body>
     </html>
   );
@@ -155,6 +161,9 @@ function RootComponent() {
                 <AppPersonalizationRoot />
                 <GlobalCallRoot />
                 <TrialOverlay />
+                <PremiumSecurityRoot />
+                <BlockedAccountGate />
+
                 {/* Required: nested routes render here. */}
                 <Outlet />
               </NotificationsProvider>

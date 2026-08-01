@@ -15,14 +15,11 @@ import {
   ShieldCheck,
   X,
   Plus,
-  ChevronRight,
-  Search,
+  Trash2,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import jhLogo from "@/assets/jh-logo.png";
-import AccountSearch from "@/components/AccountSearch";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import {
   getSavedAccounts,
   removeSavedAccount,
@@ -58,7 +55,6 @@ const Login = () => {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const [rememberMe, setRememberMe] = useState(true);
-  const [showFinder, setShowFinder] = useState(false);
 
   // « Se souvenir de moi » : on restaure le choix + le dernier identifiant utilisé.
   useEffect(() => {
@@ -226,33 +222,8 @@ const Login = () => {
       {/* Main */}
       <main className="relative z-10 flex-1 flex flex-col items-center justify-start px-5 pt-8 pb-10">
         <div className="w-full max-w-[400px]">
-          {/* Connexion — recherche de compte (design premium discret) */}
-          <button
-            onClick={() => setShowFinder(true)}
-            className="group relative w-full mb-6 rounded-2xl p-[1px] overflow-hidden active:scale-[0.99] transition-transform"
-            style={{
-              background:
-                "linear-gradient(135deg, hsl(45 92% 68% / 0.75), hsl(42 82% 50% / 0.35), hsl(45 92% 68% / 0.75))",
-            }}
-          >
-            <span className="relative flex items-center gap-3 rounded-[calc(1rem-1px)] bg-[hsl(158_60%_6%)]/95 backdrop-blur px-4 py-3.5">
-              <span
-                aria-hidden
-                className="pointer-events-none absolute inset-y-0 -left-1/2 w-1/4 rotate-12 bg-gradient-to-r from-transparent via-[hsl(45_92%_70%_/_0.18)] to-transparent"
-                style={{ animation: "premium-sweep 4s ease-in-out infinite" }}
-              />
-              <span className="w-9 h-9 rounded-xl bg-[hsl(var(--gold)/0.12)] border border-[hsl(var(--gold)/0.3)] flex items-center justify-center shrink-0">
-                <Search className="w-4 h-4 text-[hsl(var(--gold))]" />
-              </span>
-              <span className="flex-1 min-w-0 text-left">
-                <span className="block text-[14px] font-bold text-foreground leading-tight">Connexion</span>
-                <span className="block text-[11px] text-foreground/50 mt-0.5">
-                  Retrouvez votre compte en un instant
-                </span>
-              </span>
-              <ChevronRight className="w-4 h-4 text-[hsl(var(--gold))] group-hover:translate-x-0.5 transition-transform" />
-            </span>
-          </button>
+          {/* Note discrète : comptes propres à cet appareil */}
+
 
 
           {/* Hero */}
@@ -286,12 +257,15 @@ const Login = () => {
                     <button
                       onClick={(e) => {
                         e.stopPropagation();
-                        handleRemove(acc.userId);
+                        if (window.confirm(`Retirer ${acc.displayName} de cet appareil ?`)) {
+                          handleRemove(acc.userId);
+                        }
                       }}
-                      className="absolute top-2 right-2 w-6 h-6 rounded-full bg-black/50 border border-[hsl(var(--gold)/0.2)] flex items-center justify-center text-foreground/60 hover:text-destructive hover:border-destructive/50 opacity-0 group-hover:opacity-100 focus:opacity-100 transition"
-                      aria-label={`Retirer ${acc.displayName}`}
+                      className="absolute -top-1.5 -right-1.5 w-7 h-7 rounded-full bg-[hsl(158_60%_5%)] border border-destructive/60 flex items-center justify-center text-destructive shadow-lg hover:bg-destructive hover:text-white active:scale-90 transition z-10"
+                      aria-label={`Supprimer ${acc.displayName} de cet appareil`}
+                      title="Supprimer ce compte de l'appareil"
                     >
-                      <X className="w-3 h-3" />
+                      <Trash2 className="w-3.5 h-3.5" />
                     </button>
                   </li>
                 ))}
@@ -493,7 +467,6 @@ const Login = () => {
               >
                 <UserPlus className="w-4 h-4" />
                 Créer un nouveau compte
-                <ChevronRight className="w-4 h-4" />
               </button>
             </div>
           )}
@@ -504,16 +477,8 @@ const Login = () => {
           </p>
         </div>
       </main>
-
-      <Dialog open={showFinder} onOpenChange={setShowFinder}>
-        <DialogContent className="max-w-md rounded-3xl border-[hsl(var(--gold)/0.25)] bg-[hsl(158_60%_5%)]/97 backdrop-blur-xl">
-          <DialogHeader>
-            <DialogTitle className="font-display gold-text text-lg">Connexion</DialogTitle>
-          </DialogHeader>
-          <AccountSearch onClose={() => setShowFinder(false)} />
-        </DialogContent>
-      </Dialog>
     </div>
+
 
   );
 };
