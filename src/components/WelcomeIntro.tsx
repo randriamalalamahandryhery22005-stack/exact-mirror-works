@@ -1,13 +1,13 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import jhLogo from "@/assets/jh-logo.png";
-import welcomeTheme from "@/assets/welcome-theme.mp3.asset.json";
+import welcomeTheme from "@/assets/welcome-theme-v5.mp3.asset.json";
 
 /**
  * Écran d'accueil animé affiché juste après le SplashScreen.
  * Synchronisé sur la bande sonore de bienvenue (~4,7 s) avec fondu de sortie.
  */
-const TOTAL_MS = 4700;
-const FADE_MS = 900;
+const TOTAL_MS = 5000;
+const FADE_MS = 700;
 
 interface Props {
   onComplete: () => void;

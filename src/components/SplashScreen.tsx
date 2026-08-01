@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import jhLogo from "@/assets/jh-logo.png";
-import splashTheme from "@/assets/splash-theme.mp3.asset.json";
+import splashTheme from "@/assets/splash-theme-v5.mp3.asset.json";
+import welcomeTheme from "@/assets/welcome-theme-v5.mp3.asset.json";
 
 interface SplashScreenProps {
   onComplete: () => void;
@@ -10,7 +11,8 @@ interface SplashScreenProps {
  * Splash luxe "Jeux d'Hazard" — Émeraude Prestige.
  * Bande sonore de 14 s, animations calées exactement sur la musique.
  */
-const SPLASH_DURATION_MS = 14000;
+const SPLASH_DURATION_MS = 13885;
+const FADE_OUT_MS = 3500;
 
 const SplashScreen = ({ onComplete }: SplashScreenProps) => {
   const [progress, setProgress] = useState(0);
@@ -20,6 +22,7 @@ const SplashScreen = ({ onComplete }: SplashScreenProps) => {
   const rafRef = useRef(0);
   const startedRef = useRef(false);
   const audioRef = useRef<HTMLAudioElement | null>(null);
+  const fadeStartedRef = useRef(false);
 
   const steps = [
     "Initialisation du salon",
@@ -36,20 +39,14 @@ const SplashScreen = ({ onComplete }: SplashScreenProps) => {
     setLeaving(true);
     const el = audioRef.current;
     if (el) {
-      // Fondu de sortie pour enchaîner proprement sur l'écran suivant.
-      const from = el.volume;
-      const t0 = performance.now();
-      const fade = (t: number) => {
-        const k = Math.min(1, (t - t0) / 450);
-        el.volume = Math.max(0, from * (1 - k));
-        if (k < 1) requestAnimationFrame(fade);
-        else {
-          el.pause();
-        }
-      };
-      requestAnimationFrame(fade);
+      try {
+        el.volume = 0;
+        el.pause();
+      } catch {
+        /* noop */
+      }
     }
-    setTimeout(() => onComplete(), 450);
+    setTimeout(() => onComplete(), 400);
   }, [onComplete]);
 
   // Timeline animée — démarre en même temps que la musique.
@@ -62,6 +59,16 @@ const SplashScreen = ({ onComplete }: SplashScreenProps) => {
       const p = Math.min(100, (elapsed / SPLASH_DURATION_MS) * 100);
       setProgress(p);
       setStepIdx(Math.min(steps.length - 1, Math.floor((p / 100) * steps.length)));
+      // Fondu de sortie progressif (équi-puissance) sur la fin de la piste.
+      const el = audioRef.current;
+      if (el && !el.muted) {
+        const remaining = SPLASH_DURATION_MS - elapsed;
+        if (remaining <= FADE_OUT_MS) {
+          fadeStartedRef.current = true;
+          const k = Math.max(0, Math.min(1, remaining / FADE_OUT_MS));
+          el.volume = Math.max(0, Math.sin((k * Math.PI) / 2));
+        }
+      }
       if (p < 100) rafRef.current = requestAnimationFrame(tick);
       else finish();
     };
@@ -71,6 +78,10 @@ const SplashScreen = ({ onComplete }: SplashScreenProps) => {
 
   useEffect(() => {
     const el = new Audio(splashTheme.url);
+    // Préchargement de la piste de bienvenue pour un enchaînement sans coupure.
+    const preloadWelcome = new Audio(welcomeTheme.url);
+    preloadWelcome.preload = "auto";
+    try { preloadWelcome.load(); } catch { /* noop */ }
     el.preload = "auto";
     el.volume = 1;
     el.setAttribute("playsinline", "");

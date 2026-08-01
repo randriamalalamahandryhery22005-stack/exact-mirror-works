@@ -28,6 +28,7 @@ import {
 } from "lucide-react";
 import { COUNTRIES } from "@/lib/countries";
 import { supabase } from "@/integrations/supabase/client";
+import { processAvatar } from "@/lib/avatarImage";
 import { toast } from "sonner";
 import jhLogo from "@/assets/jh-logo.png";
 import { rememberCurrentAccount } from "@/lib/savedAccounts";
@@ -308,26 +309,10 @@ const Signup = () => {
 
       let avatarUrl: string | null = null;
       if (formData.profilePhoto) {
-        const fileExt = (formData.profilePhoto.name.split(".").pop() || "jpg").toLowerCase();
-        const filePath = `${userId}/avatar-${Date.now()}.${fileExt}`;
-        const { error: uploadError } = await supabase.storage
-          .from("avatars")
-          .upload(filePath, formData.profilePhoto, {
-            upsert: true,
-            contentType: formData.profilePhoto.type || undefined,
-          });
-        if (!uploadError) {
-          const { data: urlData } = supabase.storage.from("avatars").getPublicUrl(filePath);
-          avatarUrl = urlData.publicUrl;
-        } else {
-          const fbPath = `avatars/${filePath}`;
-          const { error: fbErr } = await supabase.storage
-            .from("gen-store")
-            .upload(fbPath, formData.profilePhoto, { upsert: true });
-          if (!fbErr) {
-            const { data: pub } = supabase.storage.from("gen-store").getPublicUrl(fbPath);
-            avatarUrl = pub.publicUrl;
-          }
+        try {
+          avatarUrl = await processAvatar(formData.profilePhoto, { size: 512, quality: 0.9 });
+        } catch {
+          avatarUrl = null;
         }
       }
 
@@ -341,12 +326,23 @@ const Signup = () => {
           birth_date: formData.birthDate,
           avatar_url: avatarUrl,
           gender: formData.gender || null,
+          is_validated: true,
           phone: normalizePhone(formData.profilePhone || formData.phone) || null,
         } as never)
         .eq("user_id", userId);
       if (profileErr) throw new Error("Impossible d'enregistrer le profil : " + profileErr.message);
 
+      // Permet la connexion indifféremment par e-mail ou par téléphone :
+      // on synchronise le numéro sur le compte d'authentification.
+      const authPhone = normalizePhone(formData.profilePhone || formData.phone);
+      if (signupMethod === "email" && authPhone) {
+        try {
+          await supabase.functions.invoke("update-user-auth", { body: { phone: authPhone } });
+        } catch { /* non bloquant */ }
+      }
+
       await refreshProfile();
+
       // Remember this account on this device (Facebook-style quick relogin)
       try {
         await rememberCurrentAccount(userId, {

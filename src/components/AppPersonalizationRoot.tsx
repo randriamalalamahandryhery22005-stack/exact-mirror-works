@@ -1,6 +1,7 @@
 import { useEffect } from "react";
 import {
   applyBackground,
+  applyStoredImageBackground,
   applyPalette,
   readPersonalization,
   subscribePersonalization,
@@ -11,6 +12,7 @@ import {
   applyBackgroundVideo,
   applyStoredVideoBackground,
 } from "@/lib/videoBackground";
+import { applyBackgroundMusic, applyStoredBackgroundMusic } from "@/lib/backgroundMusic";
 
 /**
  * Mounts once at the root: applies the current AI-generated background &
@@ -21,6 +23,17 @@ export default function AppPersonalizationRoot() {
   const router = useRouter();
 
   useEffect(() => {
+    const syncImage = (p: ReturnType<typeof readPersonalization>) => {
+      const opts = { opacity: p.bgOpacity ?? 1, blur: p.bgBlur ?? 0 };
+      if (p.bgImageSource === "local") void applyStoredImageBackground(opts);
+      else applyBackground(p.bgUrl, opts);
+    };
+    const syncMusic = (p: ReturnType<typeof readPersonalization>) => {
+      const opts = { volume: p.bgMusicVolume ?? 0.4, paused: p.bgMusicPaused === true };
+      if (p.bgMusicSource === "remote" && p.bgMusicUrl) applyBackgroundMusic(p.bgMusicUrl, opts);
+      else if (p.bgMusicSource === "local") void applyStoredBackgroundMusic(opts);
+      else applyBackgroundMusic(null);
+    };
     const syncVideo = (p: ReturnType<typeof readPersonalization>) => {
       const opts = {
         opacity: p.bgVideoOpacity ?? 1,
@@ -35,15 +48,17 @@ export default function AppPersonalizationRoot() {
     };
     const p = readPersonalization();
     applyPalette(p.palette);
-    applyBackground(p.bgUrl);
+    syncImage(p);
     syncVideo(p);
+    syncMusic(p);
     if (p.darkMode === false) document.documentElement.classList.remove("dark");
     else document.documentElement.classList.add("dark");
 
     const unsub = subscribePersonalization((next) => {
       applyPalette(next.palette);
-      applyBackground(next.bgUrl);
+      syncImage(next);
       syncVideo(next);
+      syncMusic(next);
       if (next.darkMode === false) document.documentElement.classList.remove("dark");
       else document.documentElement.classList.add("dark");
     });

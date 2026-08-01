@@ -2,6 +2,7 @@
 // favorites and navigation history. All persisted to localStorage.
 // Emits a "app-personalization-changed" window event so listeners can re-apply.
 import { setBackdropActive } from "@/lib/backdrop";
+import { readMediaBlob } from "@/lib/mediaStore";
 
 export type Palette = {
   primary?: string;      // "H S% L%"  (HSL triplet, no hsl())
@@ -14,6 +15,11 @@ export type Palette = {
 
 export type Personalization = {
   bgUrl?: string | null;
+  /** Image de fond : "local" (fichier de l'appareil), "remote" (lien) ou "ai". */
+  bgImageSource?: "local" | "remote" | "ai" | null;
+  bgImageName?: string | null;
+  bgOpacity?: number;             // 0..1 (intensité de l'image)
+  bgBlur?: number;                // px
   /** Vidéo de fond : "local" (IndexedDB) ou URL distante. */
   bgVideoSource?: "local" | "remote" | null;
   bgVideoUrl?: string | null;     // utilisé si bgVideoSource === "remote"
@@ -23,6 +29,12 @@ export type Personalization = {
   bgVideoMuted?: boolean;         // son coupé (défaut: true)
   bgVideoVolume?: number;         // 0..1
   bgVideoPaused?: boolean;        // lecture en pause
+  /** Musique de fond de l'application. */
+  bgMusicSource?: "local" | "remote" | null;
+  bgMusicUrl?: string | null;
+  bgMusicName?: string | null;
+  bgMusicVolume?: number;         // 0..1
+  bgMusicPaused?: boolean;
   palette?: Palette | null;
   language?: "fr" | "en";
   darkMode?: boolean;
@@ -76,7 +88,12 @@ export function applyPalette(p?: Palette | null) {
   setOrClear("--radius", p?.radius);
 }
 
-export function applyBackground(url?: string | null) {
+export interface BackgroundImageOptions {
+  opacity?: number; // 0..1
+  blur?: number;    // px
+}
+
+export function applyBackground(url?: string | null, opts: BackgroundImageOptions = {}) {
   if (typeof document === "undefined") return;
   const id = "jh-custom-bg";
   let el = document.getElementById(id) as HTMLDivElement | null;
@@ -101,9 +118,25 @@ export function applyBackground(url?: string | null) {
     } as CSSStyleDeclaration);
     document.body.appendChild(el);
   }
-  el.style.backgroundImage = `linear-gradient(hsl(var(--background)/0.65), hsl(var(--background)/0.85)), url("${url}")`;
+  const veil = 1 - Math.min(1, Math.max(0, opts.opacity ?? 1));
+  const top = (0.15 + veil * 0.7).toFixed(2);
+  const bottom = (0.35 + veil * 0.6).toFixed(2);
+  el.style.backgroundImage = `linear-gradient(hsl(var(--background)/${top}), hsl(var(--background)/${bottom})), url("${url}")`;
+  el.style.filter = opts.blur ? `blur(${opts.blur}px)` : "none";
   setBackdropActive("image", true);
   requestAnimationFrame(() => { if (el) el.style.opacity = "1"; });
+}
+
+let imageObjectUrl: string | null = null;
+
+/** Charge l'image de fond enregistrée localement (IndexedDB) et l'applique. */
+export async function applyStoredImageBackground(opts: BackgroundImageOptions = {}): Promise<string | null> {
+  const blob = await readMediaBlob("bg-image");
+  if (!blob) { applyBackground(null); return null; }
+  if (imageObjectUrl) URL.revokeObjectURL(imageObjectUrl);
+  imageObjectUrl = URL.createObjectURL(blob);
+  applyBackground(imageObjectUrl, opts);
+  return imageObjectUrl;
 }
 
 export function toggleFavorite(path: string): string[] {

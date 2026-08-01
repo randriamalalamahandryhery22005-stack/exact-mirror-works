@@ -16,7 +16,11 @@ type Profile = {
  * Persistent global root for the voice call panel.
  * - Keeps the call alive across navigation.
  * - Shows a floating pill to reopen the panel when minimized.
- * - Shows a "Rejoindre l'appel en cours" pill when someone else has an active room.
+ *
+ * Incoming-call detection, ringtone and the accept/decline overlay are
+ * handled exclusively by NotificationsProvider (single source of truth)
+ * to avoid duplicated subscriptions, duplicated ringtones and conflicting
+ * overlays on every screen.
  */
 export default function GlobalCallRoot() {
   const { user } = useAuth();
@@ -28,12 +32,12 @@ export default function GlobalCallRoot() {
     let alive = true;
     (async () => {
       const { data } = await supabase
-        .from("profiles")
+        .from("public_profiles")
         .select("user_id,name,full_name,avatar_url")
         .limit(500);
       if (!alive) return;
       const map: Record<string, Profile> = {};
-      (data || []).forEach((p: any) => { map[p.user_id] = p; });
+      (data || []).forEach((p) => { if (p.user_id) map[p.user_id] = p as Profile; });
       setProfiles(map);
     })();
     return () => { alive = false; };
