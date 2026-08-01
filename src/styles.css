@@ -964,3 +964,22 @@
       #050505 !important;
   }
 }
+
+/* --- Jeux principaux : identités néon par jeu --- */
+:root, .dark {
+  --game-aviator: 0 78% 52%;
+  --game-aviator-deep: 0 60% 12%;
+  --game-jetx: 214 90% 58%;
+  --game-jetx-deep: 220 70% 12%;
+  --game-cosmox: 275 80% 62%;
+  --game-cosmox-deep: 272 60% 13%;
+}
+
+@keyframes region-in {
+  from { opacity: 0; transform: translateY(10px) scale(0.96); }
+  to   { opacity: 1; transform: translateY(0) scale(1); }
+}
+@keyframes neon-sweep {
+  0%   { transform: translateX(-120%); }
+  100% { transform: translateX(220%); }
+}
