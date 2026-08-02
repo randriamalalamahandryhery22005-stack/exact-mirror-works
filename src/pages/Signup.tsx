@@ -31,6 +31,11 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import jhLogo from "@/assets/jh-logo.png";
 import { rememberCurrentAccount } from "@/lib/savedAccounts";
+import {
+  canCreateAccountOnDevice,
+  registerAccountOnDevice,
+  DEVICE_LIMIT_MESSAGE,
+} from "@/lib/deviceAccounts";
 
 /* ------------------------------------------------------------------ */
 /*  Validation (unchanged business logic)                             */
