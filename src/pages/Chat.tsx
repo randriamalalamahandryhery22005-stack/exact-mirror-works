@@ -121,8 +121,8 @@ export default function Chat() {
   const [loading, setLoading] = useState(true);
   const [input, setInput] = useState("");
   const [sending, setSending] = useState(false);
-  const [imageFile, setImageFile] = useState<File | null>(null);
-  const [imagePreview, setImagePreview] = useState<string | null>(null);
+  const [pendingFiles, setPendingFiles] = useState<File[]>([]);
+  const [previews, setPreviews] = useState<string[]>([]);
   const [replyTo, setReplyTo] = useState<ChatRow | null>(null);
   const [search, setSearch] = useState("");
   const [unreadCount, setUnreadCount] = useState(0);
