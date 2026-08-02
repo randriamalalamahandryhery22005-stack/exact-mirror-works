@@ -298,45 +298,83 @@ export default function Chat() {
     if (near) setUnreadCount(0);
   };
 
-  const handleImagePick = (f: File | null) => {
-    if (!f) { setImageFile(null); setImagePreview(null); return; }
-    if (f.size > MAX_FILE_MB * 1024 * 1024) { toast.error(`Fichier trop volumineux (max ${MAX_FILE_MB}MB)`); return; }
-    setImageFile(f);
-    if (f.type.startsWith("image/")) setImagePreview(URL.createObjectURL(f));
-    else setImagePreview(null);
+  const clearAttachments = useCallback(() => {
+    setPreviews((prev) => { prev.forEach((u) => { try { URL.revokeObjectURL(u); } catch { /* noop */ } }); return []; });
+    setPendingFiles([]);
+  }, []);
+
+  /** Sélection : jusqu'à 5 images, ou 1 seul fichier pour les autres types. */
+  const handleFilesPick = (list: FileList | null) => {
+    if (!list || list.length === 0) return;
+    const picked = Array.from(list);
+    const tooBig = picked.find((f) => f.size > MAX_FILE_MB * 1024 * 1024);
+    if (tooBig) { toast.error(`Fichier trop volumineux (max ${MAX_FILE_MB}MB)`); return; }
+
+    const allImages = picked.every((f) => f.type.startsWith("image/"));
+    if (!allImages) {
+      if (picked.length > 1) toast.info("Un seul fichier non-image par message");
+      clearAttachments();
+      setPendingFiles([picked[0]]);
+      setPreviews([]);
+      return;
+    }
+
+    setPendingFiles((prev) => {
+      const onlyImages = prev.every((f) => f.type.startsWith("image/")) ? prev : [];
+      const merged = [...onlyImages, ...picked].slice(0, MAX_IMAGES);
+      if (onlyImages.length + picked.length > MAX_IMAGES) {
+        toast.info(`Maximum ${MAX_IMAGES} images par message`);
+      }
+      setPreviews(merged.map((f) => URL.createObjectURL(f)));
+      return merged;
+    });
+  };
+
+  const removeAttachment = (index: number) => {
+    setPendingFiles((prev) => prev.filter((_, i) => i !== index));
+    setPreviews((prev) => {
+      const url = prev[index];
+      if (url) { try { URL.revokeObjectURL(url); } catch { /* noop */ } }
+      return prev.filter((_, i) => i !== index);
+    });
+  };
+
+  const uploadOne = async (file: File, uid: string) => {
+    const rawName = file.name || "fichier";
+    const hasExt = /\.[a-z0-9]{1,8}$/i.test(rawName);
+    const ext = hasExt ? rawName.split(".").pop()! : (file.type.split("/")[1] || "bin");
+    const safeName = rawName.replace(/[^\w.\-]+/g, "_");
+    const path = `${uid}/${Date.now()}-${Math.random().toString(36).slice(2, 8)}-${safeName}${hasExt ? "" : `.${ext}`}`;
+    const { error: upErr } = await supabase.storage
+      .from("chat-files")
+      .upload(path, file, { contentType: file.type || "application/octet-stream", upsert: false });
+    if (upErr) throw upErr;
+    return path;
   };
 
   const send = async () => {
     if (!user) return;
     const text = input.trim();
-    if (!text && !imageFile) return;
+    if (!text && pendingFiles.length === 0) return;
     setSending(true);
     try {
-      let imagePath: string | null = null;
-      if (imageFile) {
-        const rawName = imageFile.name || "fichier";
-        const hasExt = /\.[a-z0-9]{1,8}$/i.test(rawName);
-        const ext = hasExt ? rawName.split(".").pop()! : (imageFile.type.split("/")[1] || "bin");
-        const safeName = rawName.replace(/[^\w.\-]+/g, "_");
-        const path = `${user.id}/${Date.now()}-${Math.random().toString(36).slice(2, 8)}-${safeName}${hasExt ? "" : `.${ext}`}`;
+      const paths: string[] = [];
+      for (const f of pendingFiles) paths.push(await uploadOne(f, user.id));
 
-        const { error: upErr } = await supabase.storage
-          .from("chat-files")
-          .upload(path, imageFile, { contentType: imageFile.type || "application/octet-stream", upsert: false });
-        if (upErr) throw upErr;
-        imagePath = path;
-      }
+      const [first, ...rest] = paths;
+      const content = buildContent(text, { attachments: rest });
+
       const { error } = await supabase.from("global_chat_messages").insert({
         user_id: user.id,
-        content: text,
-        image_url: imagePath,
+        content,
+        image_url: first ?? null,
         reply_to_id: replyTo?.id ?? null,
       });
       if (error) throw error;
       setInput("");
-      setImageFile(null);
-      setImagePreview(null);
+      clearAttachments();
       setReplyTo(null);
+      rest.forEach((p) => resolveImage(p));
       setTimeout(() => scrollToBottom(true), 30);
     } catch (e) {
       toast.error("Échec de l'envoi");
