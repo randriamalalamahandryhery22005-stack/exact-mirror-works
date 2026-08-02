@@ -1,7 +1,7 @@
-// Logos officiels des jeux (version 0.0.2) — visuels harmonisés et centrés.
-import aviatorAsset from "@/assets/aviator-logo-v2.png.asset.json";
-import cosmoxAsset from "@/assets/cosmox-logo-v2.png.asset.json";
-import jetxAsset from "@/assets/jetx-logo-v2.png.asset.json";
+// Logos officiels des jeux (version 0.0.3) — visuels harmonisés et centrés.
+import aviatorAsset from "@/assets/aviator-logo-v3.png.asset.json";
+import cosmoxAsset from "@/assets/cosmox-logo-v3.png.asset.json";
+import jetxAsset from "@/assets/jetx-logo-v3.png.asset.json";
 
 export const aviatorLogo = aviatorAsset.url;
 export const cosmoxLogo = cosmoxAsset.url;

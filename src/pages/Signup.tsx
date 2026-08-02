@@ -31,6 +31,11 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import jhLogo from "@/assets/jh-logo.png";
 import { rememberCurrentAccount } from "@/lib/savedAccounts";
+import {
+  canCreateAccountOnDevice,
+  registerAccountOnDevice,
+  DEVICE_LIMIT_MESSAGE,
+} from "@/lib/deviceAccounts";
 
 /* ------------------------------------------------------------------ */
 /*  Validation (unchanged business logic)                             */
@@ -261,6 +266,11 @@ const Signup = () => {
 
     setLoading(true);
     try {
+      // Limite stricte : 2 comptes maximum par appareil.
+      if (!(await canCreateAccountOnDevice())) {
+        throw new Error(DEVICE_LIMIT_MESSAGE);
+      }
+
       const cleanEmail = formData.email.trim().toLowerCase();
       const cleanPhone = normalizePhone(formData.phone);
 
@@ -305,6 +315,11 @@ const Signup = () => {
         }
         userId = signInData.user.id;
       }
+
+      // Rattache le compte à cet appareil (quota de 2 comptes).
+      await registerAccountOnDevice(userId);
+
+
 
       let avatarUrl: string | null = null;
       if (formData.profilePhoto) {

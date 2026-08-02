@@ -17,7 +17,7 @@ import AccountBadges from "@/components/AccountBadges";
 import UserProfileDialog from "@/components/UserProfileDialog";
 import CallHistoryDialog from "@/components/CallHistoryDialog";
 import { useAccountBadges } from "@/hooks/useAccountBadges";
-import { buildEditedContent, parseMessage } from "@/lib/chatMeta";
+import { buildEditedContent, buildContent, parseMessage } from "@/lib/chatMeta";
 import {
   ArrowLeft,
   Send,
@@ -53,6 +53,8 @@ const fileNameFromPath = (p: string) => {
   return raw.replace(/^\d+-[a-z0-9]+\./i, (m) => m.split(".").slice(1).join("."));
 };
 const MAX_FILE_MB = 100;
+/** Jusqu'à 5 images dans un seul message ; 1 seul fichier pour les autres types. */
+const MAX_IMAGES = 5;
 
 
 type ChatRow = {
@@ -119,8 +121,8 @@ export default function Chat() {
   const [loading, setLoading] = useState(true);
   const [input, setInput] = useState("");
   const [sending, setSending] = useState(false);
-  const [imageFile, setImageFile] = useState<File | null>(null);
-  const [imagePreview, setImagePreview] = useState<string | null>(null);
+  const [pendingFiles, setPendingFiles] = useState<File[]>([]);
+  const [previews, setPreviews] = useState<string[]>([]);
   const [replyTo, setReplyTo] = useState<ChatRow | null>(null);
   const [search, setSearch] = useState("");
   const [unreadCount, setUnreadCount] = useState(0);
@@ -205,7 +207,10 @@ export default function Chat() {
       setReactions((reactRes.data || []) as Reaction[]);
       setReads((readRes.data || []) as ReadRow[]);
       await loadProfiles(rows.map((m) => m.user_id));
-      rows.forEach((m) => m.image_url && resolveImage(m.image_url));
+      rows.forEach((m) => {
+        if (m.image_url) resolveImage(m.image_url);
+        parseMessage(m.content).attachments.forEach((p) => resolveImage(p));
+      });
       setLoading(false);
       setTimeout(() => scrollToBottom(false), 50);
     })();
@@ -222,6 +227,7 @@ export default function Chat() {
         setMessages((prev) => (prev.some((m) => m.id === row.id) ? prev : [...prev, row]));
         loadProfiles([row.user_id]);
         if (row.image_url) resolveImage(row.image_url);
+        parseMessage(row.content).attachments.forEach((p) => resolveImage(p));
         if (!atBottom && row.user_id !== user?.id) setUnreadCount((c) => c + 1);
         else setTimeout(() => scrollToBottom(true), 30);
       })
@@ -296,45 +302,83 @@ export default function Chat() {
     if (near) setUnreadCount(0);
   };
 
-  const handleImagePick = (f: File | null) => {
-    if (!f) { setImageFile(null); setImagePreview(null); return; }
-    if (f.size > MAX_FILE_MB * 1024 * 1024) { toast.error(`Fichier trop volumineux (max ${MAX_FILE_MB}MB)`); return; }
-    setImageFile(f);
-    if (f.type.startsWith("image/")) setImagePreview(URL.createObjectURL(f));
-    else setImagePreview(null);
+  const clearAttachments = useCallback(() => {
+    setPreviews((prev) => { prev.forEach((u) => { try { URL.revokeObjectURL(u); } catch { /* noop */ } }); return []; });
+    setPendingFiles([]);
+  }, []);
+
+  /** Sélection : jusqu'à 5 images, ou 1 seul fichier pour les autres types. */
+  const handleFilesPick = (list: FileList | null) => {
+    if (!list || list.length === 0) return;
+    const picked = Array.from(list);
+    const tooBig = picked.find((f) => f.size > MAX_FILE_MB * 1024 * 1024);
+    if (tooBig) { toast.error(`Fichier trop volumineux (max ${MAX_FILE_MB}MB)`); return; }
+
+    const allImages = picked.every((f) => f.type.startsWith("image/"));
+    if (!allImages) {
+      if (picked.length > 1) toast.info("Un seul fichier non-image par message");
+      clearAttachments();
+      setPendingFiles([picked[0]]);
+      setPreviews([]);
+      return;
+    }
+
+    setPendingFiles((prev) => {
+      const onlyImages = prev.every((f) => f.type.startsWith("image/")) ? prev : [];
+      const merged = [...onlyImages, ...picked].slice(0, MAX_IMAGES);
+      if (onlyImages.length + picked.length > MAX_IMAGES) {
+        toast.info(`Maximum ${MAX_IMAGES} images par message`);
+      }
+      setPreviews(merged.map((f) => URL.createObjectURL(f)));
+      return merged;
+    });
+  };
+
+  const removeAttachment = (index: number) => {
+    setPendingFiles((prev) => prev.filter((_, i) => i !== index));
+    setPreviews((prev) => {
+      const url = prev[index];
+      if (url) { try { URL.revokeObjectURL(url); } catch { /* noop */ } }
+      return prev.filter((_, i) => i !== index);
+    });
+  };
+
+  const uploadOne = async (file: File, uid: string) => {
+    const rawName = file.name || "fichier";
+    const hasExt = /\.[a-z0-9]{1,8}$/i.test(rawName);
+    const ext = hasExt ? rawName.split(".").pop()! : (file.type.split("/")[1] || "bin");
+    const safeName = rawName.replace(/[^\w.\-]+/g, "_");
+    const path = `${uid}/${Date.now()}-${Math.random().toString(36).slice(2, 8)}-${safeName}${hasExt ? "" : `.${ext}`}`;
+    const { error: upErr } = await supabase.storage
+      .from("chat-files")
+      .upload(path, file, { contentType: file.type || "application/octet-stream", upsert: false });
+    if (upErr) throw upErr;
+    return path;
   };
 
   const send = async () => {
     if (!user) return;
     const text = input.trim();
-    if (!text && !imageFile) return;
+    if (!text && pendingFiles.length === 0) return;
     setSending(true);
     try {
-      let imagePath: string | null = null;
-      if (imageFile) {
-        const rawName = imageFile.name || "fichier";
-        const hasExt = /\.[a-z0-9]{1,8}$/i.test(rawName);
-        const ext = hasExt ? rawName.split(".").pop()! : (imageFile.type.split("/")[1] || "bin");
-        const safeName = rawName.replace(/[^\w.\-]+/g, "_");
-        const path = `${user.id}/${Date.now()}-${Math.random().toString(36).slice(2, 8)}-${safeName}${hasExt ? "" : `.${ext}`}`;
+      const paths: string[] = [];
+      for (const f of pendingFiles) paths.push(await uploadOne(f, user.id));
 
-        const { error: upErr } = await supabase.storage
-          .from("chat-files")
-          .upload(path, imageFile, { contentType: imageFile.type || "application/octet-stream", upsert: false });
-        if (upErr) throw upErr;
-        imagePath = path;
-      }
+      const [first, ...rest] = paths;
+      const content = buildContent(text, { attachments: rest });
+
       const { error } = await supabase.from("global_chat_messages").insert({
         user_id: user.id,
-        content: text,
-        image_url: imagePath,
+        content,
+        image_url: first ?? null,
         reply_to_id: replyTo?.id ?? null,
       });
       if (error) throw error;
       setInput("");
-      setImageFile(null);
-      setImagePreview(null);
+      clearAttachments();
       setReplyTo(null);
+      rest.forEach((p) => resolveImage(p));
       setTimeout(() => scrollToBottom(true), 30);
     } catch (e) {
       toast.error("Échec de l'envoi");
@@ -357,14 +401,24 @@ export default function Chat() {
   const saveEdit = async (m: ChatRow) => {
     const next = editText.trim();
     const parsed = parseMessage(m.content);
-    if (!next || next === parsed.text) { setEditingId(null); return; }
+    if (!next || next === parsed.text) { setEditingId(null); setEditText(""); return; }
     const original = parsed.original ?? parsed.text;
-    const content = buildEditedContent(next, original);
-    const { error } = await supabase.from("global_chat_messages").update({ content }).eq("id", m.id);
-    if (error) { toast.error("Modification impossible"); return; }
+    // Les pièces jointes supplémentaires sont conservées lors d'une modification.
+    const content = buildEditedContent(next, original, new Date().toISOString(), parsed.attachments);
+    const { data, error } = await supabase
+      .from("global_chat_messages")
+      .update({ content })
+      .eq("id", m.id)
+      .select("id,content")
+      .maybeSingle();
+    if (error) { toast.error("Modification impossible : " + error.message); return; }
+    if (!data) { toast.error("Modification refusée (droits insuffisants)"); return; }
     setMessages((prev) => prev.map((x) => (x.id === m.id ? { ...x, content } : x)));
     setEditingId(null);
+    setEditText("");
+    toast.success("Message modifié");
   };
+
 
 
   const sendVoice = async (blob: Blob, durationMs: number) => {
@@ -462,22 +516,39 @@ export default function Chat() {
   const viewers = viewersFor ? readsByMsg[viewersFor.id] || [] : [];
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-slate-950 via-slate-900 to-slate-950 text-white flex flex-col">
+    <div className="relative min-h-screen bg-[#0a1512] text-white flex flex-col">
+      {/* Fond premium façon WhatsApp — motif discret + halos dorés/émeraude */}
+      <div className="pointer-events-none fixed inset-0 -z-10">
+        <div className="absolute inset-0 bg-gradient-to-b from-[#08120f] via-[#0b1a16] to-[#08120f]" />
+        <div className="absolute -top-24 -left-16 w-[22rem] h-[22rem] rounded-full bg-emerald-500/10 blur-[120px]" />
+        <div className="absolute -bottom-24 -right-16 w-[22rem] h-[22rem] rounded-full bg-amber-500/10 blur-[120px]" />
+        <div
+          className="absolute inset-0 opacity-[0.05]"
+          style={{
+            backgroundImage:
+              "radial-gradient(circle at 12px 12px, rgba(255,255,255,0.8) 1.1px, transparent 0)",
+            backgroundSize: "26px 26px",
+          }}
+        />
+      </div>
       <header
-        className="sticky top-0 z-30 backdrop-blur-xl border-b border-white/10"
-        style={{ background: "linear-gradient(180deg, rgba(15,23,42,0.9), rgba(15,23,42,0.75))" }}
+        className="sticky top-0 z-30 backdrop-blur-2xl border-b border-white/10 shadow-[0_8px_30px_-18px_rgba(0,0,0,0.9)]"
+        style={{ background: "linear-gradient(180deg, rgba(8,20,17,0.92), rgba(8,20,17,0.72))" }}
       >
         <div className="max-w-2xl mx-auto px-3 py-3 flex items-center gap-2">
-          <button onClick={() => navigate(-1)} className="w-9 h-9 rounded-full bg-white/5 hover:bg-white/10 flex items-center justify-center" aria-label="Retour">
+          <button onClick={() => navigate(-1)} className="w-9 h-9 rounded-full bg-white/5 hover:bg-white/10 flex items-center justify-center transition active:scale-95" aria-label="Retour">
             <ArrowLeft className="w-4 h-4" />
           </button>
-          <div className="w-9 h-9 rounded-full bg-gradient-to-br from-amber-500 to-emerald-500 flex items-center justify-center">
-            <MessageCircle className="w-4 h-4 text-white" />
+          <div className="w-10 h-10 rounded-full bg-gradient-to-br from-amber-400 via-amber-500 to-emerald-500 p-[1.5px]">
+            <div className="w-full h-full rounded-full bg-[#0b1a16] flex items-center justify-center">
+              <MessageCircle className="w-4 h-4 text-amber-300" />
+            </div>
           </div>
           <div className="flex-1 min-w-0">
-            <h1 className="text-[15px] font-semibold leading-tight">J&H Chats</h1>
-            <p className="text-[11px] text-slate-400">
-              {onlineIds.size} en ligne · Utilisateurs en ligne uniquement
+            <h1 className="text-[15px] font-semibold leading-tight tracking-tight">J&H Chats</h1>
+            <p className="text-[11px] text-emerald-300/80 flex items-center gap-1.5">
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+              {onlineIds.size} en ligne
             </p>
           </div>
           <button
@@ -561,8 +632,10 @@ export default function Chat() {
                         </div>
 
                         <div
-                          className={`relative px-3 py-2 rounded-2xl text-[14px] leading-snug break-words shadow ${
-                            mine ? "bg-gradient-to-br from-amber-600 to-emerald-600 text-white rounded-tr-sm" : "bg-white/[0.06] border border-white/10 text-slate-100 rounded-tl-sm"
+                          className={`relative px-3 py-2 text-[14px] leading-snug break-words transition-shadow ${
+                            mine
+                              ? "bg-gradient-to-br from-emerald-700 to-emerald-800 text-white rounded-2xl rounded-tr-md shadow-[0_10px_24px_-14px_rgba(16,185,129,0.9)] ring-1 ring-emerald-400/25"
+                              : "bg-white/[0.07] backdrop-blur-sm border border-white/10 text-slate-100 rounded-2xl rounded-tl-md shadow-[0_10px_24px_-18px_rgba(0,0,0,0.9)]"
                           }`}
                         >
                           {reply && (
@@ -576,11 +649,26 @@ export default function Chat() {
                           {imgUrl && isAudioPath(m.image_url) && (
                             <VoiceMessagePlayer src={imgUrl} variant={mine ? "me" : "them"} cacheKey={m.id} />
                           )}
-                          {imgUrl && isImagePath(m.image_url) && (
-                            <a href={imgUrl} target="_blank" rel="noreferrer" className="block mb-1">
-                              <img src={imgUrl} alt="pièce jointe" className="rounded-xl max-h-64 object-cover" />
-                            </a>
-                          )}
+                          {imgUrl && isImagePath(m.image_url) && (() => {
+                            const album = [m.image_url!, ...parsed.attachments.filter(isImagePath)];
+                            const urls = album.map((p) => signedUrls[p]).filter(Boolean) as string[];
+                            if (urls.length <= 1) {
+                              return (
+                                <a href={imgUrl} target="_blank" rel="noreferrer" className="block mb-1">
+                                  <img src={imgUrl} alt="pièce jointe" className="rounded-xl max-h-64 object-cover" loading="lazy" />
+                                </a>
+                              );
+                            }
+                            return (
+                              <div className={`mb-1 grid gap-1 ${urls.length === 2 ? "grid-cols-2" : "grid-cols-3"}`}>
+                                {urls.map((u, i) => (
+                                  <a key={u + i} href={u} target="_blank" rel="noreferrer" className="block overflow-hidden rounded-xl">
+                                    <img src={u} alt={`pièce jointe ${i + 1}`} className="w-full h-24 object-cover hover:scale-105 transition-transform duration-300" loading="lazy" />
+                                  </a>
+                                ))}
+                              </div>
+                            );
+                          })()}
                           {imgUrl && isVideoPath(m.image_url) && (
                             <video src={imgUrl} controls playsInline className="rounded-xl max-h-64 mb-1 bg-black" />
                           )}
@@ -713,7 +801,7 @@ export default function Chat() {
         </button>
       )}
 
-      <div className="fixed left-0 right-0 z-30 border-t border-white/10 backdrop-blur-xl" style={{ bottom: "72px", background: "linear-gradient(180deg, rgba(15,23,42,0.85), rgba(15,23,42,0.98))" }}>
+      <div className="fixed left-0 right-0 z-30 border-t border-white/10 backdrop-blur-2xl" style={{ bottom: "72px", background: "linear-gradient(180deg, rgba(8,20,17,0.88), rgba(8,20,17,0.98))" }}>
         <div className="max-w-2xl mx-auto px-3 py-2.5 space-y-2">
           {replyTo && (
             <div className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-white/5 border border-white/10 text-xs">
@@ -729,37 +817,39 @@ export default function Chat() {
               </button>
             </div>
           )}
-          {imageFile && (
-            <div className="flex items-center gap-2">
-              {imagePreview ? (
-                <div className="relative inline-block">
-                  <img src={imagePreview} alt="aperçu" className="max-h-24 rounded-xl border border-white/10" />
-                  <button onClick={() => handleImagePick(null)} className="absolute -top-1.5 -right-1.5 w-6 h-6 rounded-full bg-slate-900 border border-white/20 flex items-center justify-center">
+          {pendingFiles.length > 0 && (
+            <div className="flex items-center gap-2 flex-wrap">
+              {pendingFiles.map((f, i) => (
+                <div key={`${f.name}-${i}`} className="relative">
+                  {previews[i] ? (
+                    <img src={previews[i]} alt="aperçu" className="h-20 w-20 object-cover rounded-xl border border-white/10" />
+                  ) : (
+                    <div className="inline-flex items-center gap-2 px-3 py-2 rounded-xl bg-white/5 border border-white/10 pr-8 max-w-full">
+                      {f.type.startsWith("video/") ? <Play className="w-4 h-4 text-amber-300 shrink-0" /> : <FileText className="w-4 h-4 text-amber-300 shrink-0" />}
+                      <span className="text-xs text-slate-200 truncate max-w-[200px]">{f.name}</span>
+                      <span className="text-[10px] text-slate-500">{(f.size / (1024 * 1024)).toFixed(1)} MB</span>
+                    </div>
+                  )}
+                  <button onClick={() => removeAttachment(i)} className="absolute -top-1.5 -right-1.5 w-6 h-6 rounded-full bg-slate-900 border border-white/20 flex items-center justify-center">
                     <X className="w-3.5 h-3.5" />
                   </button>
                 </div>
-              ) : (
-                <div className="relative inline-flex items-center gap-2 px-3 py-2 rounded-xl bg-white/5 border border-white/10 pr-8 max-w-full">
-                  {imageFile.type.startsWith("video/") ? <Play className="w-4 h-4 text-amber-300 shrink-0" /> : <FileText className="w-4 h-4 text-amber-300 shrink-0" />}
-                  <span className="text-xs text-slate-200 truncate max-w-[220px]">{imageFile.name}</span>
-                  <span className="text-[10px] text-slate-500">{(imageFile.size / (1024 * 1024)).toFixed(1)} MB</span>
-                  <button onClick={() => handleImagePick(null)} className="absolute -top-1.5 -right-1.5 w-6 h-6 rounded-full bg-slate-900 border border-white/20 flex items-center justify-center">
-                    <X className="w-3.5 h-3.5" />
-                  </button>
-                </div>
+              ))}
+              {previews.length > 0 && (
+                <span className="text-[10px] text-slate-400">{pendingFiles.length}/{MAX_IMAGES} images</span>
               )}
             </div>
           )}
           <div className="flex items-end gap-2">
             {!voiceActive && (
               <>
-                <label className="w-10 h-10 shrink-0 rounded-2xl bg-white/5 hover:bg-white/10 border border-white/10 flex items-center justify-center cursor-pointer transition" title="Envoyer une image ou une vidéo">
+                <label className="w-10 h-10 shrink-0 rounded-2xl bg-white/5 hover:bg-white/10 border border-white/10 flex items-center justify-center cursor-pointer transition" title="Envoyer jusqu'à 5 images">
                   <ImagePlus className="w-4 h-4 text-amber-300" />
-                  <input type="file" accept="image/*,video/*" className="hidden" onChange={(e) => { handleImagePick(e.target.files?.[0] || null); e.currentTarget.value = ""; }} />
+                  <input type="file" accept="image/*" multiple className="hidden" onChange={(e) => { handleFilesPick(e.target.files); e.currentTarget.value = ""; }} />
                 </label>
-                <label className="w-10 h-10 shrink-0 rounded-2xl bg-white/5 hover:bg-white/10 border border-white/10 flex items-center justify-center cursor-pointer transition" title="Envoyer un fichier">
+                <label className="w-10 h-10 shrink-0 rounded-2xl bg-white/5 hover:bg-white/10 border border-white/10 flex items-center justify-center cursor-pointer transition" title="Envoyer un fichier (vidéo, PDF, APK…)">
                   <Paperclip className="w-4 h-4 text-amber-300" />
-                  <input type="file" accept="*/*" className="hidden" onChange={(e) => { handleImagePick(e.target.files?.[0] || null); e.currentTarget.value = ""; }} />
+                  <input type="file" accept="*/*" className="hidden" onChange={(e) => { handleFilesPick(e.target.files); e.currentTarget.value = ""; }} />
                 </label>
                 <button
                   onClick={() => user && setCallOpen(true)}
@@ -784,7 +874,7 @@ export default function Chat() {
                   disabled={!user || sending}
                   className="flex-1 min-w-0 max-h-32 resize-none rounded-2xl bg-white/[0.06] border border-white/10 px-3 py-2.5 text-sm placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-amber-500/40"
                 />
-                <button onClick={send} disabled={sending || !user || (!input.trim() && !imageFile)} className="w-10 h-10 shrink-0 rounded-2xl bg-gradient-to-br from-amber-600 to-emerald-600 hover:brightness-110 disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center transition" aria-label="Envoyer">
+                <button onClick={send} disabled={sending || !user || (!input.trim() && pendingFiles.length === 0)} className="w-10 h-10 shrink-0 rounded-2xl bg-gradient-to-br from-amber-600 to-emerald-600 hover:brightness-110 disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center transition" aria-label="Envoyer">
                   {sending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
                 </button>
               </>
