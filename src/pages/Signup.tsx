@@ -316,6 +316,11 @@ const Signup = () => {
         userId = signInData.user.id;
       }
 
+      // Rattache le compte à cet appareil (quota de 2 comptes).
+      await registerAccountOnDevice(userId);
+
+
+
       let avatarUrl: string | null = null;
       if (formData.profilePhoto) {
         const fileExt = (formData.profilePhoto.name.split(".").pop() || "jpg").toLowerCase();
