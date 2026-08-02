@@ -266,6 +266,11 @@ const Signup = () => {
 
     setLoading(true);
     try {
+      // Limite stricte : 2 comptes maximum par appareil.
+      if (!(await canCreateAccountOnDevice())) {
+        throw new Error(DEVICE_LIMIT_MESSAGE);
+      }
+
       const cleanEmail = formData.email.trim().toLowerCase();
       const cleanPhone = normalizePhone(formData.phone);
 
