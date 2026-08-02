@@ -769,37 +769,39 @@ export default function Chat() {
               </button>
             </div>
           )}
-          {imageFile && (
-            <div className="flex items-center gap-2">
-              {imagePreview ? (
-                <div className="relative inline-block">
-                  <img src={imagePreview} alt="aperçu" className="max-h-24 rounded-xl border border-white/10" />
-                  <button onClick={() => handleImagePick(null)} className="absolute -top-1.5 -right-1.5 w-6 h-6 rounded-full bg-slate-900 border border-white/20 flex items-center justify-center">
+          {pendingFiles.length > 0 && (
+            <div className="flex items-center gap-2 flex-wrap">
+              {pendingFiles.map((f, i) => (
+                <div key={`${f.name}-${i}`} className="relative">
+                  {previews[i] ? (
+                    <img src={previews[i]} alt="aperçu" className="h-20 w-20 object-cover rounded-xl border border-white/10" />
+                  ) : (
+                    <div className="inline-flex items-center gap-2 px-3 py-2 rounded-xl bg-white/5 border border-white/10 pr-8 max-w-full">
+                      {f.type.startsWith("video/") ? <Play className="w-4 h-4 text-amber-300 shrink-0" /> : <FileText className="w-4 h-4 text-amber-300 shrink-0" />}
+                      <span className="text-xs text-slate-200 truncate max-w-[200px]">{f.name}</span>
+                      <span className="text-[10px] text-slate-500">{(f.size / (1024 * 1024)).toFixed(1)} MB</span>
+                    </div>
+                  )}
+                  <button onClick={() => removeAttachment(i)} className="absolute -top-1.5 -right-1.5 w-6 h-6 rounded-full bg-slate-900 border border-white/20 flex items-center justify-center">
                     <X className="w-3.5 h-3.5" />
                   </button>
                 </div>
-              ) : (
-                <div className="relative inline-flex items-center gap-2 px-3 py-2 rounded-xl bg-white/5 border border-white/10 pr-8 max-w-full">
-                  {imageFile.type.startsWith("video/") ? <Play className="w-4 h-4 text-amber-300 shrink-0" /> : <FileText className="w-4 h-4 text-amber-300 shrink-0" />}
-                  <span className="text-xs text-slate-200 truncate max-w-[220px]">{imageFile.name}</span>
-                  <span className="text-[10px] text-slate-500">{(imageFile.size / (1024 * 1024)).toFixed(1)} MB</span>
-                  <button onClick={() => handleImagePick(null)} className="absolute -top-1.5 -right-1.5 w-6 h-6 rounded-full bg-slate-900 border border-white/20 flex items-center justify-center">
-                    <X className="w-3.5 h-3.5" />
-                  </button>
-                </div>
+              ))}
+              {previews.length > 0 && (
+                <span className="text-[10px] text-slate-400">{pendingFiles.length}/{MAX_IMAGES} images</span>
               )}
             </div>
           )}
           <div className="flex items-end gap-2">
             {!voiceActive && (
               <>
-                <label className="w-10 h-10 shrink-0 rounded-2xl bg-white/5 hover:bg-white/10 border border-white/10 flex items-center justify-center cursor-pointer transition" title="Envoyer une image ou une vidéo">
+                <label className="w-10 h-10 shrink-0 rounded-2xl bg-white/5 hover:bg-white/10 border border-white/10 flex items-center justify-center cursor-pointer transition" title="Envoyer jusqu'à 5 images">
                   <ImagePlus className="w-4 h-4 text-amber-300" />
-                  <input type="file" accept="image/*,video/*" className="hidden" onChange={(e) => { handleImagePick(e.target.files?.[0] || null); e.currentTarget.value = ""; }} />
+                  <input type="file" accept="image/*" multiple className="hidden" onChange={(e) => { handleFilesPick(e.target.files); e.currentTarget.value = ""; }} />
                 </label>
-                <label className="w-10 h-10 shrink-0 rounded-2xl bg-white/5 hover:bg-white/10 border border-white/10 flex items-center justify-center cursor-pointer transition" title="Envoyer un fichier">
+                <label className="w-10 h-10 shrink-0 rounded-2xl bg-white/5 hover:bg-white/10 border border-white/10 flex items-center justify-center cursor-pointer transition" title="Envoyer un fichier (vidéo, PDF, APK…)">
                   <Paperclip className="w-4 h-4 text-amber-300" />
-                  <input type="file" accept="*/*" className="hidden" onChange={(e) => { handleImagePick(e.target.files?.[0] || null); e.currentTarget.value = ""; }} />
+                  <input type="file" accept="*/*" className="hidden" onChange={(e) => { handleFilesPick(e.target.files); e.currentTarget.value = ""; }} />
                 </label>
                 <button
                   onClick={() => user && setCallOpen(true)}
