@@ -17,7 +17,7 @@ import AccountBadges from "@/components/AccountBadges";
 import UserProfileDialog from "@/components/UserProfileDialog";
 import CallHistoryDialog from "@/components/CallHistoryDialog";
 import { useAccountBadges } from "@/hooks/useAccountBadges";
-import { buildEditedContent, parseMessage } from "@/lib/chatMeta";
+import { buildEditedContent, buildContent, parseMessage } from "@/lib/chatMeta";
 import {
   ArrowLeft,
   Send,
