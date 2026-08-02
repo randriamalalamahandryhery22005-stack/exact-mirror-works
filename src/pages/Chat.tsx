@@ -227,6 +227,7 @@ export default function Chat() {
         setMessages((prev) => (prev.some((m) => m.id === row.id) ? prev : [...prev, row]));
         loadProfiles([row.user_id]);
         if (row.image_url) resolveImage(row.image_url);
+        parseMessage(row.content).attachments.forEach((p) => resolveImage(p));
         if (!atBottom && row.user_id !== user?.id) setUnreadCount((c) => c + 1);
         else setTimeout(() => scrollToBottom(true), 30);
       })
