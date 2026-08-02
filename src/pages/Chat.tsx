@@ -546,8 +546,9 @@ export default function Chat() {
           </div>
           <div className="flex-1 min-w-0">
             <h1 className="text-[15px] font-semibold leading-tight tracking-tight">J&H Chats</h1>
-            <p className="text-[11px] text-slate-400">
-              {onlineIds.size} en ligne · Utilisateurs en ligne uniquement
+            <p className="text-[11px] text-emerald-300/80 flex items-center gap-1.5">
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+              {onlineIds.size} en ligne
             </p>
           </div>
           <button
