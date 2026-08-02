@@ -373,6 +373,30 @@ export type Database = {
         }
         Relationships: []
       }
+      device_accounts: {
+        Row: {
+          created_at: string
+          device_id: string
+          device_info: string | null
+          id: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          device_id: string
+          device_info?: string | null
+          id?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          device_id?: string
+          device_info?: string | null
+          id?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       football_cache: {
         Row: {
           cache_key: string
@@ -1308,6 +1332,7 @@ export type Database = {
     Functions: {
       app_access_code_required: { Args: never; Returns: boolean }
       consume_user_coins: { Args: never; Returns: undefined }
+      device_accounts_used: { Args: { _device_id: string }; Returns: number }
       get_active_device: { Args: { _user_id: string }; Returns: string }
       get_total_revenue: { Args: never; Returns: number }
       grant_subscription_coins: {
