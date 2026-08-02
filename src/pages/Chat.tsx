@@ -630,11 +630,26 @@ export default function Chat() {
                           {imgUrl && isAudioPath(m.image_url) && (
                             <VoiceMessagePlayer src={imgUrl} variant={mine ? "me" : "them"} cacheKey={m.id} />
                           )}
-                          {imgUrl && isImagePath(m.image_url) && (
-                            <a href={imgUrl} target="_blank" rel="noreferrer" className="block mb-1">
-                              <img src={imgUrl} alt="pièce jointe" className="rounded-xl max-h-64 object-cover" />
-                            </a>
-                          )}
+                          {imgUrl && isImagePath(m.image_url) && (() => {
+                            const album = [m.image_url!, ...parsed.attachments.filter(isImagePath)];
+                            const urls = album.map((p) => signedUrls[p]).filter(Boolean) as string[];
+                            if (urls.length <= 1) {
+                              return (
+                                <a href={imgUrl} target="_blank" rel="noreferrer" className="block mb-1">
+                                  <img src={imgUrl} alt="pièce jointe" className="rounded-xl max-h-64 object-cover" loading="lazy" />
+                                </a>
+                              );
+                            }
+                            return (
+                              <div className={`mb-1 grid gap-1 ${urls.length === 2 ? "grid-cols-2" : "grid-cols-3"}`}>
+                                {urls.map((u, i) => (
+                                  <a key={u + i} href={u} target="_blank" rel="noreferrer" className="block overflow-hidden rounded-xl">
+                                    <img src={u} alt={`pièce jointe ${i + 1}`} className="w-full h-24 object-cover hover:scale-105 transition-transform duration-300" loading="lazy" />
+                                  </a>
+                                ))}
+                              </div>
+                            );
+                          })()}
                           {imgUrl && isVideoPath(m.image_url) && (
                             <video src={imgUrl} controls playsInline className="rounded-xl max-h-64 mb-1 bg-black" />
                           )}
