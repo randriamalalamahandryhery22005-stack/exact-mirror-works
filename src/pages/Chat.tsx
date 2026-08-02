@@ -401,14 +401,24 @@ export default function Chat() {
   const saveEdit = async (m: ChatRow) => {
     const next = editText.trim();
     const parsed = parseMessage(m.content);
-    if (!next || next === parsed.text) { setEditingId(null); return; }
+    if (!next || next === parsed.text) { setEditingId(null); setEditText(""); return; }
     const original = parsed.original ?? parsed.text;
-    const content = buildEditedContent(next, original);
-    const { error } = await supabase.from("global_chat_messages").update({ content }).eq("id", m.id);
-    if (error) { toast.error("Modification impossible"); return; }
+    // Les pièces jointes supplémentaires sont conservées lors d'une modification.
+    const content = buildEditedContent(next, original, new Date().toISOString(), parsed.attachments);
+    const { data, error } = await supabase
+      .from("global_chat_messages")
+      .update({ content })
+      .eq("id", m.id)
+      .select("id,content")
+      .maybeSingle();
+    if (error) { toast.error("Modification impossible : " + error.message); return; }
+    if (!data) { toast.error("Modification refusée (droits insuffisants)"); return; }
     setMessages((prev) => prev.map((x) => (x.id === m.id ? { ...x, content } : x)));
     setEditingId(null);
+    setEditText("");
+    toast.success("Message modifié");
   };
+
 
 
   const sendVoice = async (blob: Blob, durationMs: number) => {
