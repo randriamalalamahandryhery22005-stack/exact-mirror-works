@@ -207,7 +207,10 @@ export default function Chat() {
       setReactions((reactRes.data || []) as Reaction[]);
       setReads((readRes.data || []) as ReadRow[]);
       await loadProfiles(rows.map((m) => m.user_id));
-      rows.forEach((m) => m.image_url && resolveImage(m.image_url));
+      rows.forEach((m) => {
+        if (m.image_url) resolveImage(m.image_url);
+        parseMessage(m.content).attachments.forEach((p) => resolveImage(p));
+      });
       setLoading(false);
       setTimeout(() => scrollToBottom(false), 50);
     })();
