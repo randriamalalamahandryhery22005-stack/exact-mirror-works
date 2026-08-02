@@ -53,6 +53,8 @@ const fileNameFromPath = (p: string) => {
   return raw.replace(/^\d+-[a-z0-9]+\./i, (m) => m.split(".").slice(1).join("."));
 };
 const MAX_FILE_MB = 100;
+/** Jusqu'à 5 images dans un seul message ; 1 seul fichier pour les autres types. */
+const MAX_IMAGES = 5;
 
 
 type ChatRow = {
