@@ -516,20 +516,36 @@ export default function Chat() {
   const viewers = viewersFor ? readsByMsg[viewersFor.id] || [] : [];
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-slate-950 via-slate-900 to-slate-950 text-white flex flex-col">
+    <div className="relative min-h-screen bg-[#0a1512] text-white flex flex-col">
+      {/* Fond premium façon WhatsApp — motif discret + halos dorés/émeraude */}
+      <div className="pointer-events-none fixed inset-0 -z-10">
+        <div className="absolute inset-0 bg-gradient-to-b from-[#08120f] via-[#0b1a16] to-[#08120f]" />
+        <div className="absolute -top-24 -left-16 w-[22rem] h-[22rem] rounded-full bg-emerald-500/10 blur-[120px]" />
+        <div className="absolute -bottom-24 -right-16 w-[22rem] h-[22rem] rounded-full bg-amber-500/10 blur-[120px]" />
+        <div
+          className="absolute inset-0 opacity-[0.05]"
+          style={{
+            backgroundImage:
+              "radial-gradient(circle at 12px 12px, rgba(255,255,255,0.8) 1.1px, transparent 0)",
+            backgroundSize: "26px 26px",
+          }}
+        />
+      </div>
       <header
-        className="sticky top-0 z-30 backdrop-blur-xl border-b border-white/10"
-        style={{ background: "linear-gradient(180deg, rgba(15,23,42,0.9), rgba(15,23,42,0.75))" }}
+        className="sticky top-0 z-30 backdrop-blur-2xl border-b border-white/10 shadow-[0_8px_30px_-18px_rgba(0,0,0,0.9)]"
+        style={{ background: "linear-gradient(180deg, rgba(8,20,17,0.92), rgba(8,20,17,0.72))" }}
       >
         <div className="max-w-2xl mx-auto px-3 py-3 flex items-center gap-2">
-          <button onClick={() => navigate(-1)} className="w-9 h-9 rounded-full bg-white/5 hover:bg-white/10 flex items-center justify-center" aria-label="Retour">
+          <button onClick={() => navigate(-1)} className="w-9 h-9 rounded-full bg-white/5 hover:bg-white/10 flex items-center justify-center transition active:scale-95" aria-label="Retour">
             <ArrowLeft className="w-4 h-4" />
           </button>
-          <div className="w-9 h-9 rounded-full bg-gradient-to-br from-amber-500 to-emerald-500 flex items-center justify-center">
-            <MessageCircle className="w-4 h-4 text-white" />
+          <div className="w-10 h-10 rounded-full bg-gradient-to-br from-amber-400 via-amber-500 to-emerald-500 p-[1.5px]">
+            <div className="w-full h-full rounded-full bg-[#0b1a16] flex items-center justify-center">
+              <MessageCircle className="w-4 h-4 text-amber-300" />
+            </div>
           </div>
           <div className="flex-1 min-w-0">
-            <h1 className="text-[15px] font-semibold leading-tight">J&H Chats</h1>
+            <h1 className="text-[15px] font-semibold leading-tight tracking-tight">J&H Chats</h1>
             <p className="text-[11px] text-slate-400">
               {onlineIds.size} en ligne · Utilisateurs en ligne uniquement
             </p>
