@@ -1,1 +1,0 @@
-GRANT ALL ON SCHEMA public TO sandbox_exec;

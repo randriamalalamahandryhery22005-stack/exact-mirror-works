@@ -124,9 +124,22 @@
     --sidebar-accent-foreground: 158 50% 12%;
     --sidebar-border: 150 20% 86%;
     --sidebar-ring: 42 65% 54%;
+
+    /* Tokens complémentaires (équivalents clairs du thème sombre) */
+    --emerald-abyss: 150 30% 94%;
+    --emerald-bright: 152 60% 34%;
+    --gold-warm: 38 70% 48%;
+    --champagne: 45 60% 88%;
+    --spectrum-yellow: 45 75% 48%;
+    --spectrum-orange: 38 75% 46%;
+    --spectrum-green: 152 60% 34%;
+    --spectrum-blue: 178 50% 34%;
+    --spectrum-violet: 158 50% 30%;
+    --spectrum-indigo: 158 45% 24%;
   }
 
-  .dark, :root {
+
+  .dark {
     /* Émeraude Prestige — Luxe casino dark */
     --background: 158 55% 5%;
     --foreground: 45 40% 96%;
@@ -196,6 +209,36 @@
     --pm-green: 142 71% 45%;          /* #22C55E */
   }
 }
+
+/* ============================================================
+   MODE CLAIR — couche de compatibilité
+   Certaines vues historiques utilisent des couleurs sombres
+   codées en dur ; on les remappe sur les tokens sémantiques
+   pour garantir la lisibilité en thème clair.
+   ============================================================ */
+@layer utilities {
+  html:not(.dark) .text-white,
+  html:not(.dark) .text-slate-50,
+  html:not(.dark) .text-slate-100,
+  html:not(.dark) .text-slate-200 { color: hsl(var(--foreground)); }
+
+  html:not(.dark) .text-slate-300,
+  html:not(.dark) .text-slate-400,
+  html:not(.dark) .text-slate-500 { color: hsl(var(--muted-foreground)); }
+
+  html:not(.dark) .bg-black\/20,
+  html:not(.dark) .bg-black\/30,
+  html:not(.dark) .bg-black\/40,
+  html:not(.dark) .bg-black\/50 { background-color: hsl(var(--card) / 0.85); }
+
+  html:not(.dark) .bg-white\/5,
+  html:not(.dark) .bg-white\/10 { background-color: hsl(var(--secondary) / 0.7); }
+
+  html:not(.dark) .border-white\/5,
+  html:not(.dark) .border-white\/10,
+  html:not(.dark) .border-white\/20 { border-color: hsl(var(--border)); }
+}
+
 
 
 @layer base {
@@ -963,23 +1006,4 @@
       radial-gradient(900px 600px at 100% 5%, rgba(244,197,66,0.18), transparent 60%),
       #050505 !important;
   }
-}
-
-/* --- Jeux principaux : identités néon par jeu --- */
-:root, .dark {
-  --game-aviator: 0 78% 52%;
-  --game-aviator-deep: 0 60% 12%;
-  --game-jetx: 214 90% 58%;
-  --game-jetx-deep: 220 70% 12%;
-  --game-cosmox: 275 80% 62%;
-  --game-cosmox-deep: 272 60% 13%;
-}
-
-@keyframes region-in {
-  from { opacity: 0; transform: translateY(10px) scale(0.96); }
-  to   { opacity: 1; transform: translateY(0) scale(1); }
-}
-@keyframes neon-sweep {
-  0%   { transform: translateX(-120%); }
-  100% { transform: translateX(220%); }
 }

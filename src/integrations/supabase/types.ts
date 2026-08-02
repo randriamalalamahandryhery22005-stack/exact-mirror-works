@@ -1262,62 +1262,13 @@ export type Database = {
       }
     }
     Views: {
-      public_profiles: {
-        Row: {
-          avatar_url: string | null
-          country_code: string | null
-          created_at: string | null
-          full_name: string | null
-          gender: string | null
-          is_validated: boolean | null
-          last_seen_at: string | null
-          name: string | null
-          region: string | null
-          status: string | null
-          user_id: string | null
-        }
-        Insert: {
-          avatar_url?: string | null
-          country_code?: string | null
-          created_at?: string | null
-          full_name?: string | null
-          gender?: string | null
-          is_validated?: boolean | null
-          last_seen_at?: string | null
-          name?: string | null
-          region?: string | null
-          status?: string | null
-          user_id?: string | null
-        }
-        Update: {
-          avatar_url?: string | null
-          country_code?: string | null
-          created_at?: string | null
-          full_name?: string | null
-          gender?: string | null
-          is_validated?: boolean | null
-          last_seen_at?: string | null
-          name?: string | null
-          region?: string | null
-          status?: string | null
-          user_id?: string | null
-        }
-        Relationships: []
-      }
+      [_ in never]: never
     }
     Functions: {
       app_access_code_required: { Args: never; Returns: boolean }
       consume_user_coins: { Args: never; Returns: undefined }
       get_active_device: { Args: { _user_id: string }; Returns: string }
       get_total_revenue: { Args: never; Returns: number }
-      grant_subscription_coins: {
-        Args: never
-        Returns: {
-          balance: number
-          plan_expires_at: string
-          plan_type: string
-        }[]
-      }
       has_active_premium_bonus: { Args: { _user_id: string }; Returns: boolean }
       has_role: {
         Args: {
