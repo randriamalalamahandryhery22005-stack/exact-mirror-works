@@ -801,7 +801,7 @@ export default function Chat() {
         </button>
       )}
 
-      <div className="fixed left-0 right-0 z-30 border-t border-white/10 backdrop-blur-xl" style={{ bottom: "72px", background: "linear-gradient(180deg, rgba(15,23,42,0.85), rgba(15,23,42,0.98))" }}>
+      <div className="fixed left-0 right-0 z-30 border-t border-white/10 backdrop-blur-2xl" style={{ bottom: "72px", background: "linear-gradient(180deg, rgba(8,20,17,0.88), rgba(8,20,17,0.98))" }}>
         <div className="max-w-2xl mx-auto px-3 py-2.5 space-y-2">
           {replyTo && (
             <div className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-white/5 border border-white/10 text-xs">
