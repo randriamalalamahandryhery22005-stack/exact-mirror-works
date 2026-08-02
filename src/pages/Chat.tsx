@@ -632,8 +632,10 @@ export default function Chat() {
                         </div>
 
                         <div
-                          className={`relative px-3 py-2 rounded-2xl text-[14px] leading-snug break-words shadow ${
-                            mine ? "bg-gradient-to-br from-amber-600 to-emerald-600 text-white rounded-tr-sm" : "bg-white/[0.06] border border-white/10 text-slate-100 rounded-tl-sm"
+                          className={`relative px-3 py-2 text-[14px] leading-snug break-words transition-shadow ${
+                            mine
+                              ? "bg-gradient-to-br from-emerald-700 to-emerald-800 text-white rounded-2xl rounded-tr-md shadow-[0_10px_24px_-14px_rgba(16,185,129,0.9)] ring-1 ring-emerald-400/25"
+                              : "bg-white/[0.07] backdrop-blur-sm border border-white/10 text-slate-100 rounded-2xl rounded-tl-md shadow-[0_10px_24px_-18px_rgba(0,0,0,0.9)]"
                           }`}
                         >
                           {reply && (
