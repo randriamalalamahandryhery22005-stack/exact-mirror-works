@@ -6,20 +6,26 @@ import { toast } from "sonner";
 import BottomNav from "@/components/BottomNav";
 import { useCall } from "@/contexts/CallContext";
 import VoiceRecorder from "@/components/VoiceRecorder";
-import VoiceMessagePlayer from "@/components/VoiceMessagePlayer";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import AccountBadges from "@/components/AccountBadges";
 import UserProfileDialog from "@/components/UserProfileDialog";
 import CallHistoryDialog from "@/components/CallHistoryDialog";
+import MessageAttachments from "@/components/chat/MessageAttachments";
+import RichText from "@/components/chat/RichText";
 import { useAccountBadges } from "@/hooks/useAccountBadges";
 import { useGlobalChat, type ChatRow, type Profile } from "@/hooks/useGlobalChat";
 import { buildEditedContent, parseMessage } from "@/lib/chatMeta";
-import { uploadWithProgress } from "@/lib/uploadWithProgress";
+import { playNotificationSound, unlockAudioPlayback } from "@/lib/notificationSound";
+import {
+  MAX_IMAGES_PER_MESSAGE,
+  humanSize,
+  isImageFile,
+  mergeSelection,
+  readAttachments,
+  uploadAttachments,
+  uploadVoice,
+  type Attachment,
+} from "@/lib/chatAttachments";
 import {
   ArrowLeft,
   Send,
@@ -37,38 +43,18 @@ import {
   CheckCheck,
   Phone,
   FileText,
-  Download,
   Play,
   Pencil,
   History,
   PhoneCall,
   WifiOff,
   ChevronDown,
+  Lock,
+  Users,
+  ShieldCheck,
+  AtSign,
 } from "lucide-react";
 
-const AUDIO_RX = /\.(webm|ogg|mp3|m4a|wav|aac|flac|opus)(\?|$)/i;
-const IMAGE_RX = /\.(png|jpe?g|gif|webp|bmp|svg|heic|heif|avif)(\?|$)/i;
-const VIDEO_RX = /\.(mp4|mov|webm|mkv|m4v|3gp|avi)(\?|$)/i;
-const isAudioPath = (p?: string | null) => !!p && AUDIO_RX.test(p) && /voice-|\.(ogg|m4a|mp3|wav|aac|flac|opus)/i.test(p);
-const isImagePath = (p?: string | null) => !!p && IMAGE_RX.test(p);
-const isVideoPath = (p?: string | null) => !!p && VIDEO_RX.test(p) && !isAudioPath(p);
-
-/** Nom d'origine encodé dans le chemin : `<uid>/<ts>-<rand>-<nom.ext>`. */
-const fileNameFromPath = (p: string) => {
-  const raw = decodeURIComponent(p.split("/").pop() || p);
-  const stripped = raw.replace(/^\d{10,}-[a-z0-9]{4,10}-?/i, "");
-  return stripped || raw;
-};
-const humanSize = (bytes: number) =>
-  bytes > 1024 * 1024 ? `${(bytes / (1024 * 1024)).toFixed(1)} MB` : `${Math.max(1, Math.round(bytes / 1024))} KB`;
-const sanitizeName = (name: string) =>
-  name
-    .normalize("NFKD")
-    .replace(/[^\w.\- ]+/g, "")
-    .replace(/\s+/g, "_")
-    .slice(-60) || "fichier";
-
-const MAX_FILE_MB = 100;
 const EMOJIS = ["👍", "❤️", "😂", "😮", "😢", "🔥", "🎉", "🙏"];
 
 function initials(name?: string | null) {
@@ -89,6 +75,8 @@ function formatDay(iso: string) {
   return d.toLocaleDateString();
 }
 
+type Directory = { user_id: string; name: string | null; full_name: string | null; avatar_url: string | null };
+
 export default function Chat() {
   const { user, isAdmin } = useAuth();
   const navigate = useNavigate();
@@ -105,14 +93,20 @@ export default function Chat() {
     loading,
     connected,
     ingest,
+    resolveAttachments,
+    loadProfiles,
     onNewMessage,
   } = useGlobalChat(user?.id ?? null);
+
+  /** Fil actif : `null` = salon public, sinon identifiant du correspondant privé. */
+  const [peer, setPeer] = useState<string | null>(null);
+  const [threadsOpen, setThreadsOpen] = useState(false);
 
   const [input, setInput] = useState("");
   const [sending, setSending] = useState(false);
   const [uploadPct, setUploadPct] = useState<number | null>(null);
-  const [imageFile, setImageFile] = useState<File | null>(null);
-  const [imagePreview, setImagePreview] = useState<string | null>(null);
+  const [files, setFiles] = useState<File[]>([]);
+  const [previews, setPreviews] = useState<Record<string, string>>({});
   const [replyTo, setReplyTo] = useState<ChatRow | null>(null);
   const [search, setSearch] = useState("");
   const [unreadCount, setUnreadCount] = useState(0);
@@ -125,11 +119,10 @@ export default function Chat() {
   const [editText, setEditText] = useState("");
   const [originalFor, setOriginalFor] = useState<ChatRow | null>(null);
   const [voiceActive, setVoiceActive] = useState(false);
+  const [directory, setDirectory] = useState<Directory[]>([]);
+  const [mentionQuery, setMentionQuery] = useState<string | null>(null);
 
   const { openPanel: openCallPanel } = useCall();
-  const setCallOpen = (v: boolean) => {
-    if (v) openCallPanel();
-  };
 
   useEffect(() => {
     if (searchParams.get("call") === "1") {
@@ -140,6 +133,50 @@ export default function Chat() {
     }
   }, [searchParams, setSearchParams, openCallPanel]);
 
+  /* ------------------------------------------------------------------ */
+  /* Annuaire (mentions + ouverture d'un message privé)                  */
+  /* ------------------------------------------------------------------ */
+  useEffect(() => {
+    let alive = true;
+    void (async () => {
+      const { data } = await supabase
+        .from("public_profiles")
+        .select("user_id, name, full_name, avatar_url")
+        .limit(500);
+      if (alive && data) setDirectory(data as Directory[]);
+    })();
+    return () => {
+      alive = false;
+    };
+  }, []);
+
+  const dirName = useCallback(
+    (id: string) => {
+      const d = directory.find((x) => x.user_id === id);
+      const p = profiles[id];
+      return d?.full_name || d?.name || p?.full_name || p?.name || "Joueur";
+    },
+    [directory, profiles],
+  );
+
+  /** Correspondants privés autorisés : un utilisateur n'écrit qu'aux administrateurs. */
+  const privatePeers = useMemo(() => {
+    const ids = new Set<string>();
+    for (const m of messages) {
+      if (!m.private_with || !user) continue;
+      if (m.user_id === user.id) ids.add(m.private_with);
+      else if (m.private_with === user.id) ids.add(m.user_id);
+    }
+    if (!isAdmin) admins.forEach((a) => a !== user?.id && ids.add(a));
+    return Array.from(ids);
+  }, [messages, user, isAdmin, admins]);
+
+  const contactOptions = useMemo(() => {
+    if (!user) return [] as Directory[];
+    const base = isAdmin ? directory : directory.filter((d) => admins.has(d.user_id));
+    return base.filter((d) => d.user_id !== user.id);
+  }, [directory, isAdmin, admins, user]);
+
   const scrollRef = useRef<HTMLDivElement>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
   const atBottomRef = useRef(true);
@@ -149,14 +186,13 @@ export default function Chat() {
     bottomRef.current?.scrollIntoView({ behavior: smooth ? "smooth" : "auto" });
   }, []);
 
-  // Arrivée d'un message : suivre le fil ou signaler les non-lus.
+  // Arrivée d'un message : son, suivi du fil ou compteur de non-lus.
   useEffect(() => {
     onNewMessage.current = (row: ChatRow) => {
-      if (row.user_id === user?.id || atBottomRef.current) {
-        window.setTimeout(() => scrollToBottom(true), 40);
-      } else {
-        setUnreadCount((c) => c + 1);
-      }
+      const mine = row.user_id === user?.id;
+      if (!mine) playNotificationSound(/voice-/i.test(String(row.image_url || "")) ? "voice" : "message");
+      if (mine || atBottomRef.current) window.setTimeout(() => scrollToBottom(true), 40);
+      else setUnreadCount((c) => c + 1);
     };
     return () => {
       onNewMessage.current = null;
@@ -171,6 +207,11 @@ export default function Chat() {
     }
   }, [loading, messages.length, scrollToBottom]);
 
+  useEffect(() => {
+    window.setTimeout(() => scrollToBottom(false), 60);
+    setUnreadCount(0);
+  }, [peer, scrollToBottom]);
+
   const onScroll = () => {
     const el = scrollRef.current;
     if (!el) return;
@@ -179,53 +220,73 @@ export default function Chat() {
     if (near) setUnreadCount(0);
   };
 
-  const handleImagePick = (f: File | null) => {
-    if (!f) {
-      setImageFile(null);
-      setImagePreview(null);
-      return;
+  /* ------------------------------------------------------------------ */
+  /* Sélection de fichiers                                               */
+  /* ------------------------------------------------------------------ */
+  const addFiles = (incoming: File[]) => {
+    if (incoming.length === 0) return;
+    const { files: next, error } = mergeSelection(files, incoming);
+    if (error) toast.error(error);
+    setFiles(next);
+    const urls: Record<string, string> = {};
+    for (const f of next) {
+      const key = `${f.name}-${f.size}-${f.lastModified}`;
+      urls[key] = previews[key] || (isImageFile(f) ? URL.createObjectURL(f) : "");
     }
-    if (f.size > MAX_FILE_MB * 1024 * 1024) {
-      toast.error(`Fichier trop volumineux (max ${MAX_FILE_MB} MB)`);
-      return;
+    setPreviews(urls);
+  };
+  const removeFile = (idx: number) => setFiles((prev) => prev.filter((_, i) => i !== idx));
+  const clearFiles = () => {
+    setFiles([]);
+    setPreviews({});
+  };
+
+  /* ------------------------------------------------------------------ */
+  /* Envoi                                                               */
+  /* ------------------------------------------------------------------ */
+  const insertRow = async (payload: {
+    content: string;
+    attachments: Attachment[];
+  }) => {
+    if (!user) return;
+    const { data, error } = await supabase
+      .from("global_chat_messages")
+      .insert({
+        user_id: user.id,
+        content: payload.content,
+        attachments: payload.attachments as unknown as never,
+        image_url: payload.attachments[0]?.path ?? null,
+        private_with: peer,
+        reply_to_id: replyTo?.id ?? null,
+      })
+      .select()
+      .single();
+    if (error) throw error;
+    if (data) {
+      const row = data as ChatRow;
+      ingest([row]);
+      void resolveAttachments(readAttachments(row).map((a) => a.path));
     }
-    setImageFile(f);
-    setImagePreview(f.type.startsWith("image/") ? URL.createObjectURL(f) : null);
   };
 
   const send = async () => {
     if (!user || sending) return;
     const text = input.trim();
-    if (!text && !imageFile) return;
+    if (!text && files.length === 0) return;
     setSending(true);
     try {
-      let storagePath: string | null = null;
-      if (imageFile) {
-        const stamp = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
-        const path = `${user.id}/${stamp}-${sanitizeName(imageFile.name)}`;
+      let uploaded: Attachment[] = [];
+      if (files.length > 0) {
         setUploadPct(0);
-        await uploadWithProgress("chat-files", path, imageFile, {
-          contentType: imageFile.type || "application/octet-stream",
-          onProgress: setUploadPct,
-        });
-        storagePath = path;
+        uploaded = await uploadAttachments(user.id, files, (pct, index, total) =>
+          setUploadPct(Math.round(((index + pct / 100) / total) * 100)),
+        );
       }
-      const { data, error } = await supabase
-        .from("global_chat_messages")
-        .insert({
-          user_id: user.id,
-          content: text,
-          image_url: storagePath,
-          reply_to_id: replyTo?.id ?? null,
-        })
-        .select()
-        .single();
-      if (error) throw error;
-      if (data) ingest([data as ChatRow]);
+      await insertRow({ content: text, attachments: uploaded });
       setInput("");
-      setImageFile(null);
-      setImagePreview(null);
+      clearFiles();
       setReplyTo(null);
+      setMentionQuery(null);
       window.setTimeout(() => scrollToBottom(true), 40);
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : "";
@@ -240,24 +301,12 @@ export default function Chat() {
   const sendVoice = async (blob: Blob, durationMs: number) => {
     if (!user) return;
     try {
-      const path = `${user.id}/voice-${Date.now()}-${Math.random().toString(36).slice(2, 8)}.webm`;
       setUploadPct(0);
-      await uploadWithProgress("chat-files", path, blob, {
-        contentType: blob.type || "audio/webm",
-        onProgress: setUploadPct,
+      const att = await uploadVoice(user.id, blob, setUploadPct);
+      await insertRow({
+        content: `🎤 Message vocal · ${Math.max(1, Math.round(durationMs / 1000))}s`,
+        attachments: [att],
       });
-      const { data, error } = await supabase
-        .from("global_chat_messages")
-        .insert({
-          user_id: user.id,
-          content: `🎤 Message vocal · ${Math.max(1, Math.round(durationMs / 1000))}s`,
-          image_url: path,
-          reply_to_id: replyTo?.id ?? null,
-        })
-        .select()
-        .single();
-      if (error) throw error;
-      if (data) ingest([data as ChatRow]);
       setReplyTo(null);
       window.setTimeout(() => scrollToBottom(true), 40);
     } catch (e) {
@@ -298,6 +347,7 @@ export default function Chat() {
     }
     if (data) ingest([data as ChatRow]);
     setEditingId(null);
+    toast.success("Message modifié");
   };
 
   const toggleReaction = async (messageId: string, emoji: string) => {
@@ -317,17 +367,63 @@ export default function Chat() {
     setEmojiPickerFor(null);
   };
 
+  /* ------------------------------------------------------------------ */
+  /* Mentions                                                            */
+  /* ------------------------------------------------------------------ */
+  const onInputChange = (value: string) => {
+    setInput(value);
+    const m = /(?:^|\s)@([\p{L}\p{N}_ -]{0,24})$/u.exec(value);
+    setMentionQuery(m ? m[1] : null);
+  };
+
+  const mentionMatches = useMemo(() => {
+    if (mentionQuery === null) return [];
+    const q = mentionQuery.trim().toLowerCase();
+    return directory
+      .filter((d) => d.user_id !== user?.id)
+      .filter((d) => !q || `${d.full_name || ""} ${d.name || ""}`.toLowerCase().includes(q))
+      .slice(0, 6);
+  }, [mentionQuery, directory, user?.id]);
+
+  const applyMention = (d: Directory) => {
+    const label = d.full_name || d.name || "Joueur";
+    setInput((prev) => prev.replace(/@([\p{L}\p{N}_ -]{0,24})$/u, `@${label} `));
+    setMentionQuery(null);
+  };
+
+  const mentionNames = useMemo(() => directory.map((d) => d.full_name || d.name || "").filter(Boolean), [directory]);
+
+  const openProfileByName = (name: string) => {
+    const d = directory.find(
+      (x) => (x.full_name || x.name || "").toLowerCase() === name.toLowerCase(),
+    );
+    if (d) setProfileFor(d.user_id);
+  };
+
   /* --------------------------- Dérivés d'affichage --------------------------- */
 
+  const threadMessages = useMemo(
+    () =>
+      messages.filter((m) => {
+        if (!peer) return !m.private_with;
+        if (!user) return false;
+        return (
+          (m.user_id === user.id && m.private_with === peer) ||
+          (m.user_id === peer && m.private_with === user.id)
+        );
+      }),
+    [messages, peer, user],
+  );
+
   const filtered = useMemo(() => {
-    if (!search.trim()) return messages;
+    if (!search.trim()) return threadMessages;
     const q = search.toLowerCase();
-    return messages.filter(
+    return threadMessages.filter(
       (m) =>
         parseMessage(m.content).text.toLowerCase().includes(q) ||
-        (m.image_url ? fileNameFromPath(m.image_url).toLowerCase().includes(q) : false),
+        readAttachments(m).some((a) => a.name.toLowerCase().includes(q)),
     );
-  }, [messages, search]);
+  }, [threadMessages, search]);
 
   const grouped = useMemo(() => {
     const out: Array<{ day: string; items: ChatRow[] }> = [];
@@ -367,32 +463,77 @@ export default function Chat() {
     return m;
   }, [reads]);
 
+  const unreadByPeer = useMemo(() => {
+    const out: Record<string, number> = {};
+    if (!user) return out;
+    const seen = new Set(reads.filter((r) => r.user_id === user.id).map((r) => r.message_id));
+    for (const m of messages) {
+      if (!m.private_with || m.user_id === user.id || seen.has(m.id)) continue;
+      if (m.private_with !== user.id) continue;
+      out[m.user_id] = (out[m.user_id] || 0) + 1;
+    }
+    return out;
+  }, [messages, reads, user]);
+
   const viewers = viewersFor ? readsByMsg[viewersFor.id] || [] : [];
+
+  useEffect(() => {
+    if (privatePeers.length > 0) void loadProfiles(privatePeers);
+  }, [privatePeers, loadProfiles]);
+
+  const openThread = (id: string | null) => {
+    unlockAudioPlayback();
+    setPeer(id);
+    setThreadsOpen(false);
+    setReplyTo(null);
+    clearFiles();
+  };
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-slate-950 via-slate-900 to-slate-950 text-white flex flex-col">
       <header
         className="sticky top-0 z-30 backdrop-blur-xl border-b border-white/10"
-        style={{ background: "linear-gradient(180deg, rgba(15,23,42,0.9), rgba(15,23,42,0.75))" }}
+        style={{ background: "linear-gradient(180deg, rgba(15,23,42,0.92), rgba(15,23,42,0.78))" }}
       >
         <div className="max-w-2xl mx-auto px-3 py-3 flex items-center gap-2">
           <button
-            onClick={() => navigate(-1)}
+            onClick={() => (peer ? openThread(null) : navigate(-1))}
             className="w-9 h-9 rounded-full bg-white/5 hover:bg-white/10 flex items-center justify-center"
             aria-label="Retour"
           >
             <ArrowLeft className="w-4 h-4" />
           </button>
-          <div className="w-9 h-9 rounded-full bg-gradient-to-br from-amber-500 to-emerald-500 flex items-center justify-center">
-            <MessageCircle className="w-4 h-4 text-white" />
-          </div>
+          <button
+            onClick={() => peer && setProfileFor(peer)}
+            className="w-9 h-9 rounded-full overflow-hidden bg-gradient-to-br from-amber-500 to-emerald-500 flex items-center justify-center shrink-0"
+          >
+            {peer && profiles[peer]?.avatar_url ? (
+              <img src={profiles[peer]!.avatar_url!} alt="" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+            ) : peer ? (
+              <span className="text-[11px] font-bold uppercase">{initials(dirName(peer))}</span>
+            ) : (
+              <MessageCircle className="w-4 h-4 text-white" />
+            )}
+          </button>
           <div className="flex-1 min-w-0">
-            <h1 className="text-[15px] font-semibold leading-tight">J&amp;H Chats</h1>
+            <h1 className="text-[15px] font-semibold leading-tight truncate flex items-center gap-1.5">
+              {peer ? (
+                <>
+                  <Lock className="w-3.5 h-3.5 text-emerald-300 shrink-0" /> {dirName(peer)}
+                </>
+              ) : (
+                "J&H Chats"
+              )}
+            </h1>
             <p className="text-[11px] text-slate-400 flex items-center gap-1.5">
               {connected ? (
                 <>
                   <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-                  Temps réel · {onlineIds.size} en ligne
+                  {peer
+                    ? onlineIds.has(peer)
+                      ? "En ligne"
+                      : "Message privé chiffré au compte"
+                    : `Temps réel · ${onlineIds.size} en ligne`}
                 </>
               ) : (
                 <>
@@ -400,9 +541,22 @@ export default function Chat() {
                 </>
               )}
               <span className="text-slate-600">·</span>
-              <span>{messages.length} messages</span>
+              <span>{threadMessages.length} messages</span>
             </p>
           </div>
+          <button
+            onClick={() => setThreadsOpen(true)}
+            className="relative w-9 h-9 rounded-full bg-white/5 hover:bg-white/10 flex items-center justify-center"
+            title="Conversations privées"
+            aria-label="Conversations privées"
+          >
+            <Users className="w-4 h-4 text-amber-300" />
+            {Object.keys(unreadByPeer).length > 0 && (
+              <span className="absolute -top-0.5 -right-0.5 min-w-4 h-4 px-1 rounded-full bg-amber-500 text-[10px] font-bold grid place-items-center">
+                {Object.values(unreadByPeer).reduce((a, b) => a + b, 0)}
+              </span>
+            )}
+          </button>
           <button
             onClick={() => setHistoryOpen(true)}
             className="w-9 h-9 rounded-full bg-white/5 hover:bg-white/10 flex items-center justify-center"
@@ -436,7 +590,9 @@ export default function Chat() {
             <div className="text-center py-16 text-slate-400 text-sm">
               {search.trim()
                 ? "Aucun message ne correspond à votre recherche."
-                : "Aucun message pour l'instant. Soyez le premier à écrire !"}
+                : peer
+                  ? "Démarrez cette conversation privée."
+                  : "Aucun message pour l'instant. Soyez le premier à écrire !"}
             </div>
           ) : (
             grouped.map((g) => (
@@ -452,12 +608,12 @@ export default function Chat() {
                   const online = onlineIds.has(m.user_id);
                   const reply = m.reply_to_id ? msgById[m.reply_to_id] : null;
                   const replyAuthor = reply ? profiles[reply.user_id] : null;
-                  const imgUrl = m.image_url ? signedUrls[m.image_url] : null;
+                  const atts = readAttachments(m);
                   const msgReactions = reactionsByMsg[m.id] || {};
                   const msgReads = readsByMsg[m.id] || [];
                   const readCount = msgReads.filter((r) => r.user_id !== m.user_id).length;
                   const parsed = parseMessage(m.content);
-                  const pendingAttachment = !!m.image_url && !imgUrl;
+                  const isVoice = atts.some((a) => /voice-/i.test(a.path));
 
                   return (
                     <div
@@ -487,7 +643,7 @@ export default function Chat() {
                           <span className="absolute bottom-0 right-0 w-2.5 h-2.5 rounded-full bg-emerald-500 ring-2 ring-slate-950" />
                         )}
                       </div>
-                      <div className={`max-w-[78%] flex flex-col ${mine ? "items-end" : "items-start"}`}>
+                      <div className={`min-w-0 max-w-[78%] flex flex-col ${mine ? "items-end" : "items-start"}`}>
                         <div className={`flex items-center gap-2 text-[11px] mb-1 ${mine ? "flex-row-reverse" : ""}`}>
                           <button
                             onClick={() => setProfileFor(m.user_id)}
@@ -496,11 +652,12 @@ export default function Chat() {
                             {mine ? "Vous" : displayName(p)}
                           </button>
                           <AccountBadges userId={m.user_id} admins={admins} premium={premium} compact />
+                          {m.private_with && <Lock className="w-3 h-3 text-emerald-300" />}
                           <span className="text-slate-500">{formatTime(m.created_at)}</span>
                         </div>
 
                         <div
-                          className={`relative px-3 py-2 rounded-2xl text-[14px] leading-snug break-words shadow ${
+                          className={`relative w-full min-w-0 px-3 py-2 rounded-2xl text-[14px] leading-snug break-words overflow-hidden shadow ${
                             mine
                               ? "bg-gradient-to-br from-amber-600 to-emerald-600 text-white rounded-tr-sm"
                               : "bg-white/[0.06] border border-white/10 text-slate-100 rounded-tl-sm"
@@ -516,59 +673,22 @@ export default function Chat() {
                                 {reply.user_id === user?.id ? "Vous" : displayName(replyAuthor ?? undefined)}
                               </div>
                               <div className="opacity-70 truncate">
-                                {parseMessage(reply.content).text || (reply.image_url ? "📎 Pièce jointe" : "")}
+                                {parseMessage(reply.content).text ||
+                                  (readAttachments(reply).length > 0 ? "📎 Pièce jointe" : "")}
                               </div>
                             </div>
                           )}
 
-                          {pendingAttachment && (
-                            <div className="flex items-center gap-2 mb-1 px-2.5 py-2 rounded-xl bg-black/20 border border-white/10 text-[12px]">
-                              <Loader2 className="w-4 h-4 animate-spin opacity-80" />
-                              Chargement de la pièce jointe…
+                          {atts.length > 0 && (
+                            <div className="mb-1">
+                              <MessageAttachments
+                                attachments={atts}
+                                urls={signedUrls}
+                                mine={mine}
+                                messageId={m.id}
+                              />
                             </div>
                           )}
-                          {imgUrl && isAudioPath(m.image_url) && (
-                            <VoiceMessagePlayer src={imgUrl} variant={mine ? "me" : "them"} cacheKey={m.id} />
-                          )}
-                          {imgUrl && isImagePath(m.image_url) && (
-                            <a href={imgUrl} target="_blank" rel="noreferrer" className="block mb-1">
-                              <img
-                                src={imgUrl}
-                                alt="pièce jointe"
-                                loading="lazy"
-                                className="rounded-xl max-h-64 object-cover"
-                              />
-                            </a>
-                          )}
-                          {imgUrl && isVideoPath(m.image_url) && (
-                            <video
-                              src={imgUrl}
-                              controls
-                              playsInline
-                              preload="metadata"
-                              className="rounded-xl max-h-64 mb-1 bg-black"
-                            />
-                          )}
-                          {imgUrl &&
-                            !isAudioPath(m.image_url) &&
-                            !isImagePath(m.image_url) &&
-                            !isVideoPath(m.image_url) && (
-                              <a
-                                href={imgUrl}
-                                target="_blank"
-                                rel="noreferrer"
-                                download={fileNameFromPath(m.image_url!)}
-                                className={`flex items-center gap-2 mb-1 px-2.5 py-2 rounded-xl border ${
-                                  mine ? "bg-white/15 border-white/25" : "bg-black/20 border-white/10"
-                                }`}
-                              >
-                                <FileText className="w-5 h-5 shrink-0 opacity-80" />
-                                <span className="flex-1 min-w-0 text-[12px] font-medium truncate">
-                                  {fileNameFromPath(m.image_url!)}
-                                </span>
-                                <Download className="w-4 h-4 shrink-0 opacity-80" />
-                              </a>
-                            )}
 
                           {editingId === m.id ? (
                             <div className="space-y-1.5">
@@ -595,11 +715,14 @@ export default function Chat() {
                             </div>
                           ) : (
                             <>
-                              {parsed.text && !isAudioPath(m.image_url) && (
-                                <div className="whitespace-pre-wrap">{parsed.text}</div>
-                              )}
-                              {parsed.text && isAudioPath(m.image_url) && (
-                                <div className="text-[11px] opacity-70 mt-0.5">{parsed.text}</div>
+                              {parsed.text && (
+                                <div className={isVoice ? "text-[11px] opacity-70 mt-0.5" : "whitespace-pre-wrap break-words"}>
+                                  <RichText
+                                    text={parsed.text}
+                                    mentionNames={mentionNames}
+                                    onMentionClick={openProfileByName}
+                                  />
+                                </div>
                               )}
                               {parsed.editedAt && (
                                 <button
@@ -664,7 +787,15 @@ export default function Chat() {
                           >
                             <Reply className="w-3 h-3" /> Répondre
                           </button>
-                          {mine && !isAudioPath(m.image_url) && (
+                          {!mine && (
+                            <button
+                              onClick={() => onInputChange(`${input}${input && !input.endsWith(" ") ? " " : ""}@${displayName(p)} `)}
+                              className="text-[10px] text-slate-400 hover:text-white px-2 py-0.5 rounded-full bg-white/5 hover:bg-white/10 inline-flex items-center gap-1"
+                            >
+                              <AtSign className="w-3 h-3" /> Mentionner
+                            </button>
+                          )}
+                          {mine && !isVoice && (
                             <button
                               onClick={() => startEdit(m)}
                               className="text-[10px] text-slate-300 hover:text-white px-2 py-0.5 rounded-full bg-white/5 hover:bg-white/10 inline-flex items-center gap-1"
@@ -672,7 +803,7 @@ export default function Chat() {
                               <Pencil className="w-3 h-3" /> Modifier
                             </button>
                           )}
-                          {mine && (
+                          {mine ? (
                             <button
                               onClick={() => setViewersFor(m)}
                               className="text-[10px] text-slate-300 hover:text-white px-2 py-0.5 rounded-full bg-white/5 hover:bg-white/10 inline-flex items-center gap-1"
@@ -684,8 +815,7 @@ export default function Chat() {
                               )}
                               Vu · {readCount}
                             </button>
-                          )}
-                          {!mine && (
+                          ) : (
                             <button
                               onClick={() => setViewersFor(m)}
                               className="text-[10px] text-slate-400 hover:text-white px-2 py-0.5 rounded-full bg-white/5 hover:bg-white/10 inline-flex items-center gap-1"
@@ -744,7 +874,8 @@ export default function Chat() {
                   Réponse à {replyTo.user_id === user?.id ? "vous" : displayName(profiles[replyTo.user_id])}
                 </div>
                 <div className="text-slate-400 truncate">
-                  {parseMessage(replyTo.content).text || (replyTo.image_url ? "📎 Pièce jointe" : "")}
+                  {parseMessage(replyTo.content).text ||
+                    (readAttachments(replyTo).length > 0 ? "📎 Pièce jointe" : "")}
                 </div>
               </div>
               <button
@@ -755,37 +886,43 @@ export default function Chat() {
               </button>
             </div>
           )}
-          {imageFile && (
-            <div className="flex items-center gap-2">
-              {imagePreview ? (
-                <div className="relative inline-block">
-                  <img src={imagePreview} alt="aperçu" className="max-h-24 rounded-xl border border-white/10" />
-                  <button
-                    onClick={() => handleImagePick(null)}
-                    className="absolute -top-1.5 -right-1.5 w-6 h-6 rounded-full bg-slate-900 border border-white/20 flex items-center justify-center"
-                  >
-                    <X className="w-3.5 h-3.5" />
-                  </button>
-                </div>
-              ) : (
-                <div className="relative inline-flex items-center gap-2 px-3 py-2 rounded-xl bg-white/5 border border-white/10 pr-8 max-w-full">
-                  {imageFile.type.startsWith("video/") ? (
-                    <Play className="w-4 h-4 text-amber-300 shrink-0" />
-                  ) : (
-                    <FileText className="w-4 h-4 text-amber-300 shrink-0" />
-                  )}
-                  <span className="text-xs text-slate-200 truncate max-w-[220px]">{imageFile.name}</span>
-                  <span className="text-[10px] text-slate-500">{humanSize(imageFile.size)}</span>
-                  <button
-                    onClick={() => handleImagePick(null)}
-                    className="absolute -top-1.5 -right-1.5 w-6 h-6 rounded-full bg-slate-900 border border-white/20 flex items-center justify-center"
-                  >
-                    <X className="w-3.5 h-3.5" />
-                  </button>
-                </div>
-              )}
+
+          {files.length > 0 && (
+            <div className="flex items-center gap-2 overflow-x-auto pb-1">
+              {files.map((f, i) => {
+                const key = `${f.name}-${f.size}-${f.lastModified}`;
+                const preview = previews[key];
+                return (
+                  <div key={key} className="relative shrink-0">
+                    {preview ? (
+                      <img src={preview} alt={f.name} className="h-20 w-20 object-cover rounded-xl border border-white/10" />
+                    ) : (
+                      <div className="flex items-center gap-2 px-3 py-2 rounded-xl bg-white/5 border border-white/10 max-w-[220px]">
+                        {f.type.startsWith("video/") ? (
+                          <Play className="w-4 h-4 text-amber-300 shrink-0" />
+                        ) : (
+                          <FileText className="w-4 h-4 text-amber-300 shrink-0" />
+                        )}
+                        <span className="text-xs text-slate-200 truncate">{f.name}</span>
+                        <span className="text-[10px] text-slate-500 shrink-0">{humanSize(f.size)}</span>
+                      </div>
+                    )}
+                    <button
+                      onClick={() => removeFile(i)}
+                      className="absolute -top-1.5 -right-1.5 w-6 h-6 rounded-full bg-slate-900 border border-white/20 flex items-center justify-center"
+                      aria-label="Retirer"
+                    >
+                      <X className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                );
+              })}
+              <span className="text-[10px] text-slate-500 shrink-0">
+                {files.every(isImageFile) ? `${files.length}/${MAX_IMAGES_PER_MESSAGE} images` : "1 fichier max"}
+              </span>
             </div>
           )}
+
           {uploadPct !== null && (
             <div className="space-y-1">
               <div className="flex items-center justify-between text-[11px] text-slate-300">
@@ -800,27 +937,44 @@ export default function Chat() {
               </div>
             </div>
           )}
+
+          {mentionMatches.length > 0 && (
+            <div className="flex gap-1.5 overflow-x-auto pb-1">
+              {mentionMatches.map((d) => (
+                <button
+                  key={d.user_id}
+                  onClick={() => applyMention(d)}
+                  className="shrink-0 inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-white/5 border border-white/10 text-xs hover:bg-white/10"
+                >
+                  <AtSign className="w-3 h-3 text-amber-300" />
+                  {d.full_name || d.name || "Joueur"}
+                </button>
+              ))}
+            </div>
+          )}
+
           <div className="flex items-end gap-2">
             {!voiceActive && (
               <>
                 <label
                   className="w-10 h-10 shrink-0 rounded-2xl bg-white/5 hover:bg-white/10 border border-white/10 flex items-center justify-center cursor-pointer transition"
-                  title="Envoyer une image ou une vidéo"
+                  title="Envoyer jusqu'à 5 images"
                 >
                   <ImagePlus className="w-4 h-4 text-amber-300" />
                   <input
                     type="file"
-                    accept="image/*,video/*"
+                    accept="image/*"
+                    multiple
                     className="hidden"
                     onChange={(e) => {
-                      handleImagePick(e.target.files?.[0] || null);
+                      addFiles(Array.from(e.target.files || []));
                       e.currentTarget.value = "";
                     }}
                   />
                 </label>
                 <label
                   className="w-10 h-10 shrink-0 rounded-2xl bg-white/5 hover:bg-white/10 border border-white/10 flex items-center justify-center cursor-pointer transition"
-                  title="Envoyer un fichier (PDF, APK, musique, archive…)"
+                  title="Envoyer un fichier (vidéo, PDF, APK, archive…)"
                 >
                   <Paperclip className="w-4 h-4 text-amber-300" />
                   <input
@@ -828,20 +982,22 @@ export default function Chat() {
                     accept="*/*"
                     className="hidden"
                     onChange={(e) => {
-                      handleImagePick(e.target.files?.[0] || null);
+                      addFiles(Array.from(e.target.files || []));
                       e.currentTarget.value = "";
                     }}
                   />
                 </label>
-                <button
-                  onClick={() => user && setCallOpen(true)}
-                  disabled={!user}
-                  className="w-10 h-10 shrink-0 rounded-2xl bg-gradient-to-br from-emerald-500/20 to-emerald-500/20 hover:from-emerald-500/30 hover:to-emerald-500/30 border border-emerald-400/30 flex items-center justify-center transition disabled:opacity-40 active:scale-95"
-                  title="Appel vocal de groupe"
-                  aria-label="Appel vocal"
-                >
-                  <Phone className="w-4 h-4 text-emerald-300" />
-                </button>
+                {!peer && (
+                  <button
+                    onClick={() => user && openCallPanel()}
+                    disabled={!user}
+                    className="w-10 h-10 shrink-0 rounded-2xl bg-emerald-500/20 hover:bg-emerald-500/30 border border-emerald-400/30 flex items-center justify-center transition disabled:opacity-40 active:scale-95"
+                    title="Appel vocal de groupe"
+                    aria-label="Appel vocal"
+                  >
+                    <Phone className="w-4 h-4 text-emerald-300" />
+                  </button>
+                )}
               </>
             )}
             <VoiceRecorder onSend={sendVoice} disabled={!user} onActiveChange={setVoiceActive} />
@@ -849,7 +1005,7 @@ export default function Chat() {
               <>
                 <textarea
                   value={input}
-                  onChange={(e) => setInput(e.target.value)}
+                  onChange={(e) => onInputChange(e.target.value)}
                   onKeyDown={(e) => {
                     if (e.key === "Enter" && !e.shiftKey) {
                       e.preventDefault();
@@ -857,13 +1013,19 @@ export default function Chat() {
                     }
                   }}
                   rows={1}
-                  placeholder={user ? "Écrire un message..." : "Connectez-vous pour discuter"}
+                  placeholder={
+                    !user
+                      ? "Connectez-vous pour discuter"
+                      : peer
+                        ? `Message privé à ${dirName(peer)}…`
+                        : "Écrire un message... (@ pour mentionner)"
+                  }
                   disabled={!user || sending}
                   className="flex-1 min-w-0 max-h-32 resize-none rounded-2xl bg-white/[0.06] border border-white/10 px-3 py-2.5 text-sm placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-amber-500/40"
                 />
                 <button
                   onClick={send}
-                  disabled={sending || !user || (!input.trim() && !imageFile)}
+                  disabled={sending || !user || (!input.trim() && files.length === 0)}
                   className="w-10 h-10 shrink-0 rounded-2xl bg-gradient-to-br from-amber-600 to-emerald-600 hover:brightness-110 disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center transition"
                   aria-label="Envoyer"
                 >
@@ -874,6 +1036,69 @@ export default function Chat() {
           </div>
         </div>
       </div>
+
+      {/* Conversations privées */}
+      <Dialog open={threadsOpen} onOpenChange={setThreadsOpen}>
+        <DialogContent className="max-w-sm bg-slate-900 border-white/10 text-white">
+          <DialogHeader>
+            <DialogTitle className="text-white flex items-center gap-2">
+              <Lock className="w-4 h-4" /> Messages privés
+            </DialogTitle>
+          </DialogHeader>
+          <p className="text-[11px] text-slate-400 -mt-2">
+            {isAdmin
+              ? "Vous pouvez échanger en privé avec n'importe quel compte."
+              : "Les messages privés sont réservés aux échanges avec l'administration."}
+          </p>
+          <div className="max-h-80 overflow-y-auto space-y-1">
+            <button
+              onClick={() => openThread(null)}
+              className={`w-full flex items-center gap-3 px-2 py-2 rounded-xl ${!peer ? "bg-amber-500/20" : "bg-white/5 hover:bg-white/10"}`}
+            >
+              <span className="w-8 h-8 rounded-full bg-gradient-to-br from-amber-500 to-emerald-500 grid place-items-center">
+                <MessageCircle className="w-4 h-4" />
+              </span>
+              <span className="text-sm font-medium">Salon public J&amp;H</span>
+            </button>
+            {contactOptions.map((d) => {
+              const unread = unreadByPeer[d.user_id] || 0;
+              return (
+                <button
+                  key={d.user_id}
+                  onClick={() => openThread(d.user_id)}
+                  className={`w-full flex items-center gap-3 px-2 py-2 rounded-xl ${
+                    peer === d.user_id ? "bg-amber-500/20" : "bg-white/5 hover:bg-white/10"
+                  }`}
+                >
+                  <span className="w-8 h-8 rounded-full overflow-hidden bg-slate-800 grid place-items-center">
+                    {d.avatar_url ? (
+                      <img src={d.avatar_url} alt="" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                    ) : (
+                      <span className="text-[11px] font-bold uppercase">{initials(d.full_name || d.name)}</span>
+                    )}
+                  </span>
+                  <span className="flex-1 min-w-0 text-left">
+                    <span className="block text-sm font-medium truncate">{d.full_name || d.name || "Joueur"}</span>
+                    {admins.has(d.user_id) && (
+                      <span className="text-[10px] text-emerald-300 inline-flex items-center gap-1">
+                        <ShieldCheck className="w-3 h-3" /> Administration
+                      </span>
+                    )}
+                  </span>
+                  {unread > 0 && (
+                    <span className="min-w-5 h-5 px-1.5 rounded-full bg-amber-500 text-[10px] font-bold grid place-items-center">
+                      {unread}
+                    </span>
+                  )}
+                </button>
+              );
+            })}
+            {contactOptions.length === 0 && (
+              <p className="text-sm text-slate-400 py-4 text-center">Aucun correspondant disponible.</p>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
 
       {/* Viewers dialog */}
       <Dialog open={!!viewersFor} onOpenChange={(o) => !o && setViewersFor(null)}>
@@ -946,8 +1171,6 @@ export default function Chat() {
       {user && (
         <CallHistoryDialog open={historyOpen} onClose={() => setHistoryOpen(false)} userId={user.id} profiles={profiles} />
       )}
-
-      {/* Global VoiceCallPanel is rendered by GlobalCallRoot to persist across navigation */}
 
       <BottomNav />
       <style>{`
