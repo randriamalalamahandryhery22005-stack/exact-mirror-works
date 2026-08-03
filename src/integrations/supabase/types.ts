@@ -635,26 +635,32 @@ export type Database = {
       }
       global_chat_messages: {
         Row: {
+          attachments: Json
           content: string
           created_at: string
           id: string
           image_url: string | null
+          private_with: string | null
           reply_to_id: string | null
           user_id: string
         }
         Insert: {
+          attachments?: Json
           content: string
           created_at?: string
           id?: string
           image_url?: string | null
+          private_with?: string | null
           reply_to_id?: string | null
           user_id: string
         }
         Update: {
+          attachments?: Json
           content?: string
           created_at?: string
           id?: string
           image_url?: string | null
+          private_with?: string | null
           reply_to_id?: string | null
           user_id?: string
         }
