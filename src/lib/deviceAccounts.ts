@@ -1,43 +1,54 @@
-// Limitation du nombre de comptes créés depuis un même appareil.
 import { supabase } from "@/integrations/supabase/client";
 import { getDeviceId } from "@/hooks/usePresence";
 
+/** Nombre maximum de comptes pouvant être créés depuis un même appareil. */
 export const MAX_ACCOUNTS_PER_DEVICE = 2;
 
-export const DEVICE_LIMIT_MESSAGE =
-  "Limite atteinte : cet appareil a déjà servi à créer 2 comptes. La création d'un nouveau compte est bloquée.";
+const rpc = (name: string, args?: Record<string, unknown>) =>
+  (supabase.rpc as unknown as (n: string, a?: Record<string, unknown>) => Promise<{ data: unknown; error: unknown }>)(
+    name,
+    args,
+  );
 
-const deviceInfo = () =>
-  `${navigator.platform || ""} · ${navigator.userAgent.slice(0, 90)}`;
-
-/** Nombre de comptes déjà créés depuis cet appareil (0 si indisponible). */
-export async function countAccountsOnDevice(): Promise<number> {
-  try {
-    const { data, error } = await (supabase.rpc as never as (
-      fn: string,
-      args: Record<string, unknown>,
-    ) => Promise<{ data: number | null; error: unknown }>)("device_accounts_used", {
-      _device_id: getDeviceId(),
-    });
-    if (error) return 0;
-    return typeof data === "number" ? data : 0;
-  } catch {
-    return 0;
-  }
+/** Vérifie que l'appareil courant n'a pas atteint la limite de comptes. */
+export async function canCreateAccountOnDevice(): Promise<{ allowed: boolean; count: number }> {
+  const deviceId = getDeviceId();
+  const { data, error } = await rpc("device_account_count", { _device_id: deviceId });
+  if (error) return { allowed: true, count: 0 };
+  const count = Number(data ?? 0);
+  return { allowed: count < MAX_ACCOUNTS_PER_DEVICE, count };
 }
 
-/** Vrai si l'appareil peut encore accueillir un nouveau compte. */
-export async function canCreateAccountOnDevice(): Promise<boolean> {
-  return (await countAccountsOnDevice()) < MAX_ACCOUNTS_PER_DEVICE;
+/** Associe le compte connecté à l'appareil courant. */
+export async function registerDeviceAccount(): Promise<void> {
+  await rpc("register_device_account", { _device_id: getDeviceId() });
 }
 
-/** Enregistre le compte fraîchement créé sur cet appareil. */
-export async function registerAccountOnDevice(userId: string): Promise<void> {
-  try {
-    await (supabase.from("device_accounts" as never) as never as {
-      insert: (v: Record<string, unknown>) => Promise<unknown>;
-    }).insert({ device_id: getDeviceId(), user_id: userId, device_info: deviceInfo() });
-  } catch {
-    /* non bloquant */
-  }
+/**
+ * Détecte l'utilisation d'informations déjà utilisées par un autre compte
+ * (nom complet ou numéro). Si c'est le cas, le compte est restreint et une
+ * notification invite l'utilisateur à envoyer une demande d'examen.
+ */
+export async function enforceUniqueIdentity(opts: {
+  userId: string;
+  fullName?: string | null;
+  phone?: string | null;
+}): Promise<boolean> {
+  const { data, error } = await rpc("profile_info_conflict", {
+    _name: opts.fullName ?? "",
+    _phone: opts.phone ?? "",
+  });
+  if (error || data !== true) return false;
+
+  await supabase.from("profiles").update({ status: "restricted", is_validated: false }).eq("user_id", opts.userId);
+  await supabase.from("notifications").insert({
+    title: "Compte restreint · informations déjà utilisées",
+    message:
+      "Certaines de vos informations (nom ou numéro de compte) sont déjà utilisées par un autre compte. " +
+      "Votre compte est en accès restreint : envoyez une demande d'examen depuis votre profil et attendez la validation de l'administrateur.",
+    is_global: false,
+    target_user_id: opts.userId,
+    created_by: opts.userId,
+  });
+  return true;
 }
