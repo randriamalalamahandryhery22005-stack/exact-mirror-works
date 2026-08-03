@@ -14,54 +14,6 @@ export type Database = {
   }
   public: {
     Tables: {
-      account_reviews: {
-        Row: {
-          confirmed: boolean
-          created_at: string
-          id: string
-          id_photo_path: string | null
-          personal_info: Json
-          reject_reason: string | null
-          reviewed_at: string | null
-          reviewed_by: string | null
-          status: string
-          step: number
-          submitted_at: string | null
-          updated_at: string
-          user_id: string
-        }
-        Insert: {
-          confirmed?: boolean
-          created_at?: string
-          id?: string
-          id_photo_path?: string | null
-          personal_info?: Json
-          reject_reason?: string | null
-          reviewed_at?: string | null
-          reviewed_by?: string | null
-          status?: string
-          step?: number
-          submitted_at?: string | null
-          updated_at?: string
-          user_id: string
-        }
-        Update: {
-          confirmed?: boolean
-          created_at?: string
-          id?: string
-          id_photo_path?: string | null
-          personal_info?: Json
-          reject_reason?: string | null
-          reviewed_at?: string | null
-          reviewed_by?: string | null
-          status?: string
-          step?: number
-          submitted_at?: string | null
-          updated_at?: string
-          user_id?: string
-        }
-        Relationships: []
-      }
       activation_codes: {
         Row: {
           code_name: string
@@ -425,18 +377,21 @@ export type Database = {
         Row: {
           created_at: string
           device_id: string
+          device_info: string | null
           id: string
           user_id: string
         }
         Insert: {
           created_at?: string
           device_id: string
+          device_info?: string | null
           id?: string
           user_id: string
         }
         Update: {
           created_at?: string
           device_id?: string
+          device_info?: string | null
           id?: string
           user_id?: string
         }
@@ -537,8 +492,8 @@ export type Database = {
           created_by: string | null
           description: string
           download_count: number
-          file_name: string | null
-          file_path: string | null
+          file_name: string
+          file_path: string
           file_size: number
           file_url: string | null
           id: string
@@ -557,8 +512,8 @@ export type Database = {
           created_by?: string | null
           description: string
           download_count?: number
-          file_name?: string | null
-          file_path?: string | null
+          file_name: string
+          file_path: string
           file_size?: number
           file_url?: string | null
           id?: string
@@ -577,8 +532,8 @@ export type Database = {
           created_by?: string | null
           description?: string
           download_count?: number
-          file_name?: string | null
-          file_path?: string | null
+          file_name?: string
+          file_path?: string
           file_size?: number
           file_url?: string | null
           id?: string
@@ -632,7 +587,6 @@ export type Database = {
       }
       global_chat_messages: {
         Row: {
-          attachments: Json
           content: string
           created_at: string
           id: string
@@ -641,7 +595,6 @@ export type Database = {
           user_id: string
         }
         Insert: {
-          attachments?: Json
           content: string
           created_at?: string
           id?: string
@@ -650,7 +603,6 @@ export type Database = {
           user_id: string
         }
         Update: {
-          attachments?: Json
           content?: string
           created_at?: string
           id?: string
@@ -764,7 +716,6 @@ export type Database = {
           attachment_size: number | null
           attachment_type: string | null
           attachment_url: string | null
-          attachments: Json
           content: string | null
           conversation_id: string
           created_at: string
@@ -778,7 +729,6 @@ export type Database = {
           attachment_size?: number | null
           attachment_type?: string | null
           attachment_url?: string | null
-          attachments?: Json
           content?: string | null
           conversation_id: string
           created_at?: string
@@ -792,7 +742,6 @@ export type Database = {
           attachment_size?: number | null
           attachment_type?: string | null
           attachment_url?: string | null
-          attachments?: Json
           content?: string | null
           conversation_id?: string
           created_at?: string
@@ -1381,9 +1330,19 @@ export type Database = {
       }
     }
     Functions: {
-      device_account_count: { Args: { _device_id: string }; Returns: number }
+      app_access_code_required: { Args: never; Returns: boolean }
+      consume_user_coins: { Args: never; Returns: undefined }
+      device_accounts_used: { Args: { _device_id: string }; Returns: number }
       get_active_device: { Args: { _user_id: string }; Returns: string }
       get_total_revenue: { Args: never; Returns: number }
+      grant_subscription_coins: {
+        Args: never
+        Returns: {
+          balance: number
+          plan_expires_at: string
+          plan_type: string
+        }[]
+      }
       has_active_premium_bonus: { Args: { _user_id: string }; Returns: boolean }
       has_role: {
         Args: {
@@ -1396,15 +1355,9 @@ export type Database = {
         Args: { _conv: string; _user: string }
         Returns: boolean
       }
-      open_admin_dm: { Args: { _peer: string }; Returns: string }
-      profile_info_conflict: {
-        Args: { _name: string; _phone: string }
-        Returns: boolean
-      }
-      register_device_account: {
-        Args: { _device_id: string }
-        Returns: undefined
-      }
+      show_limit: { Args: never; Returns: number }
+      show_trgm: { Args: { "": string }; Returns: string[] }
+      verify_app_access_code: { Args: { _code: string }; Returns: boolean }
     }
     Enums: {
       app_role: "admin" | "user"
