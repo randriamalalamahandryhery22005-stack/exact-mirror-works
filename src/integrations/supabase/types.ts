@@ -14,6 +14,54 @@ export type Database = {
   }
   public: {
     Tables: {
+      account_reviews: {
+        Row: {
+          confirmed: boolean
+          created_at: string
+          id: string
+          id_photo_path: string | null
+          personal_info: Json
+          reject_reason: string | null
+          reviewed_at: string | null
+          reviewed_by: string | null
+          status: string
+          step: number
+          submitted_at: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          confirmed?: boolean
+          created_at?: string
+          id?: string
+          id_photo_path?: string | null
+          personal_info?: Json
+          reject_reason?: string | null
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          status?: string
+          step?: number
+          submitted_at?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          confirmed?: boolean
+          created_at?: string
+          id?: string
+          id_photo_path?: string | null
+          personal_info?: Json
+          reject_reason?: string | null
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          status?: string
+          step?: number
+          submitted_at?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       activation_codes: {
         Row: {
           code_name: string
@@ -1332,6 +1380,7 @@ export type Database = {
     Functions: {
       app_access_code_required: { Args: never; Returns: boolean }
       consume_user_coins: { Args: never; Returns: undefined }
+      device_account_count: { Args: { _device_id: string }; Returns: number }
       device_accounts_used: { Args: { _device_id: string }; Returns: number }
       get_active_device: { Args: { _user_id: string }; Returns: string }
       get_total_revenue: { Args: never; Returns: number }
@@ -1354,6 +1403,14 @@ export type Database = {
       is_conversation_member: {
         Args: { _conv: string; _user: string }
         Returns: boolean
+      }
+      profile_info_conflict: {
+        Args: { _name: string; _phone: string }
+        Returns: boolean
+      }
+      register_device_account: {
+        Args: { _device_id: string }
+        Returns: undefined
       }
       show_limit: { Args: never; Returns: number }
       show_trgm: { Args: { "": string }; Returns: string[] }
