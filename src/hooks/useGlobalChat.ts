@@ -17,9 +17,13 @@ export type ChatRow = {
   user_id: string;
   content: string;
   image_url: string | null;
+  attachments?: unknown;
+  /** Destinataire d'un message privé (null = salon public). */
+  private_with?: string | null;
   reply_to_id: string | null;
   created_at: string;
 };
+
 
 export type Profile = {
   user_id: string;
