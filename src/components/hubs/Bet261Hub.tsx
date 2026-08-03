@@ -5,9 +5,9 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import bet261Logo from "@/assets/bet261-logo.png";
-import { aviatorLogo } from "@/lib/gameLogos";
-import { cosmoxLogo } from "@/lib/gameLogos";
-import { jetxLogo } from "@/lib/gameLogos";
+import aviatorLogo from "@/assets/logo-aviator.png";
+import cosmoxLogo from "@/assets/logo-cosmox.png";
+import jetxLogo from "@/assets/logo-jetx.png";
 
 import type { GameStats } from "@/hooks/useGameStats";
 
@@ -124,8 +124,8 @@ const Bet261Hub = ({ gameStats, mostPopular, onTrack }: Props) => {
               <div className="relative animate-zoom-in-soft" style={{ animationDelay: `${180 + i * 70}ms` }}>
                 <div className="absolute inset-[-3px] rounded-2xl opacity-60 pointer-events-none group-hover:opacity-100 transition-opacity animate-glow-gold-loop"
                      style={{ background: "conic-gradient(from 45deg, hsl(var(--gold)/0.6), transparent 45%, hsl(var(--gold)/0.6))", filter: "blur(4px)" }} />
-                <div className="relative w-14 h-14 rounded-2xl overflow-hidden ring-1 ring-[hsl(var(--gold)/0.35)] bg-[hsl(var(--emerald-abyss))] shadow-[inset_0_1px_0_hsl(var(--gold)/0.25)]">
-                  <img src={g.logo} alt={g.name} className="w-full h-full object-contain object-center p-0.5 group-hover:scale-110 transition-transform duration-500" loading="lazy" decoding="async" />
+                <div className="relative w-14 h-14 rounded-2xl overflow-hidden ring-1 ring-[hsl(var(--gold)/0.35)] bg-[hsl(var(--emerald-abyss))]">
+                  <img src={g.logo} alt={g.name} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500" loading="lazy" decoding="async" />
                 </div>
               </div>
 
