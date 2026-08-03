@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { readAttachments } from "@/lib/chatAttachments";
 
 /**
  * Source de vérité du salon global "J&H Chats".
@@ -145,7 +146,7 @@ export function useGlobalChat(userId?: string | null) {
       messagesRef.current = Array.from(map.values()).sort(byTime);
       setMessages(messagesRef.current);
       void loadProfiles(rows.map((r) => r.user_id));
-      void resolveAttachments(rows.map((r) => r.image_url));
+      void resolveAttachments(rows.flatMap((r) => readAttachments(r).map((a) => a.path)));
       if (notify && fresh.length > 0) fresh.forEach((r) => onNewMessage.current?.(r));
     },
     [loadProfiles, resolveAttachments],
@@ -189,7 +190,7 @@ export function useGlobalChat(userId?: string | null) {
       setMessages(messagesRef.current);
 
       void loadProfiles(messagesRef.current.map((m) => m.user_id));
-      void resolveAttachments(messagesRef.current.map((m) => m.image_url));
+      void resolveAttachments(messagesRef.current.flatMap((m) => readAttachments(m).map((a) => a.path)));
 
       if (reactRes && "data" in reactRes && reactRes.data) setReactions(reactRes.data as Reaction[]);
       if (readRes && "data" in readRes && readRes.data) setReads(readRes.data as ReadRow[]);
